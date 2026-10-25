@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Environment Variables & Secrets
+.env
+*.key
+*.pem
+secrets.yaml
+
+# Data Storage & Local Indexes (Dynamic user data)
+data/storage/images/*
+!data/storage/images/.gitkeep
+data/storage/indexes/*
+!data/storage/indexes/.gitkeep
+data/storage/uploads/*
+!data/storage/uploads/.gitkeep
+*.faiss
+
+# Model & HuggingFace Caches
+.cache/
+hf_cache/
+transformers_cache/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build & Packaging
+build/
+dist/
+*.egg-info/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

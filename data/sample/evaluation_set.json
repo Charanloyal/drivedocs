@@ -1,0 +1,127 @@
+[
+  {
+    "id": "q1_waveguide_loss",
+    "query": "What is the optical transmission loss of the silicon nitride waveguide bus?",
+    "relevant_filenames": [
+      "quantum_photonics_spec.pdf"
+    ],
+    "relevant_pages": [
+      1
+    ],
+    "relevant_image_ids": [],
+    "expected_facts": [
+      "0.12 dB/cm",
+      "silicon nitride",
+      "waveguide"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests multi-page PDF text extraction on Page 1."
+  },
+  {
+    "id": "q2_detector_efficiency",
+    "query": "What is the peak quantum efficiency of the SNSPD single-photon detector and at what wavelength?",
+    "relevant_filenames": [
+      "quantum_photonics_spec.pdf"
+    ],
+    "relevant_pages": [
+      2
+    ],
+    "relevant_image_ids": [],
+    "expected_facts": [
+      "98.4%",
+      "1550 nm"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests multi-page PDF text extraction and page attribution on Page 2."
+  },
+  {
+    "id": "q3_agent_rate_limit",
+    "query": "What is the maximum API throughput rate limit for agent workers?",
+    "relevant_filenames": [
+      "agent_safety_protocol.md"
+    ],
+    "relevant_pages": [
+      1
+    ],
+    "relevant_image_ids": [],
+    "expected_facts": [
+      "120 calls per minute",
+      "throughput"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests Markdown document extraction and precision."
+  },
+  {
+    "id": "q4_raft_heartbeat",
+    "query": "What is the periodic heartbeat interval dispatched by the Raft leader?",
+    "relevant_filenames": [
+      "distributed_systems_notes.txt"
+    ],
+    "relevant_pages": [
+      1
+    ],
+    "relevant_image_ids": [],
+    "expected_facts": [
+      "150 milliseconds",
+      "heartbeat"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests TXT document extraction and parameter retrieval."
+  },
+  {
+    "id": "q5_visual_architecture",
+    "query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.",
+    "relevant_filenames": [
+      "architecture_diagram.png"
+    ],
+    "relevant_pages": [
+      1
+    ],
+    "relevant_image_ids": [
+      "img_doc_architecture"
+    ],
+    "expected_facts": [
+      "architecture",
+      "visual"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests CLIP text-to-image retrieval for technical architecture diagrams."
+  },
+  {
+    "id": "q6_visual_efficiency_curve",
+    "query": "Show the calibrated quantum efficiency curve versus wavelength chart.",
+    "relevant_filenames": [
+      "quantum_photonics_spec.pdf"
+    ],
+    "relevant_pages": [
+      2
+    ],
+    "relevant_image_ids": [],
+    "expected_facts": [
+      "chart",
+      "quantum efficiency"
+    ],
+    "is_unsupported": false,
+    "notes": "Tests embedded PDF image extraction and multimodal visual retrieval."
+  },
+  {
+    "id": "q7_unsupported_apple_stock",
+    "query": "What was the stock price of Apple Computer Inc on January 15, 1999?",
+    "relevant_filenames": [],
+    "relevant_pages": [],
+    "relevant_image_ids": [],
+    "expected_facts": [],
+    "is_unsupported": true,
+    "notes": "Negative test query: out-of-corpus query that must trigger insufficient evidence fallback."
+  },
+  {
+    "id": "q8_unsupported_baking_recipe",
+    "query": "What is the traditional culinary recipe and oven temperature for baking chocolate chip cookies?",
+    "relevant_filenames": [],
+    "relevant_pages": [],
+    "relevant_image_ids": [],
+    "expected_facts": [],
+    "is_unsupported": true,
+    "notes": "Negative test query: unsupported domain topic that must not hallucinate or fabricate citations."
+  }
+]

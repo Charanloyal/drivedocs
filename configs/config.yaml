@@ -1,0 +1,59 @@
+app:
+  name: "DriveDocs"
+  version: "0.1.0"
+  description: "Multimodal Retrieval-Augmented Generation (RAG) Assistant"
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+
+hardware:
+  device: "cpu" # Auto-detected as cpu or cuda
+
+storage:
+  base_dir: "data/storage"
+  images_dir: "data/storage/images"
+  indexes_dir: "data/storage/indexes"
+  max_upload_size_bytes: 15728640 # 15 MB
+  allowed_extensions:
+    - ".pdf"
+    - ".txt"
+    - ".md"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+
+chunking:
+  chunk_size: 500
+  chunk_overlap: 100
+  separators:
+    - "\n\n"
+    - "\n"
+    - ". "
+    - " "
+    - ""
+
+embeddings:
+  text:
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    dimension: 384
+    batch_size: 32
+    normalize: true
+  image:
+    model_name: "openai/clip-vit-base-patch32"
+    dimension: 512
+    batch_size: 16
+    normalize: true
+
+retrieval:
+  default_top_k_text: 4
+  default_top_k_images: 2
+  min_similarity_threshold: 0.25
+  text_weight: 0.7
+  image_weight: 0.3
+
+generation:
+  provider: "extractive" # Options: extractive, gemini, openai
+  gemini_model: "gemini-1.5-flash"
+  openai_model: "gpt-4o-mini"
+  temperature: 0.2
+  max_tokens: 512

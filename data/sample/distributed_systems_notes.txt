@@ -1,0 +1,11 @@
+DISTRIBUTED CONSENSUS SPECIFICATION: RAFT ENGINE v2
+
+1. LEADER ELECTION PROTOCOL
+Nodes initialize in the Follower state. If a follower node receives no communication from a cluster leader within the randomized election timeout period, it transitions to the Candidate state and increments its current term number.
+The randomized election timeout is configured between 300 milliseconds and 600 milliseconds to avoid split-vote oscillations.
+
+2. HEARTBEAT INTERVALS
+The cluster leader periodically dispatches empty AppendEntries RPC heartbeats at a fixed interval of 150 milliseconds to maintain cluster dominance and reset follower election countdown timers.
+
+3. QUORUM THRESHOLDS
+A cluster consisting of N nodes requires a minimum quorum of floor(N/2) + 1 active nodes to commit a state machine log entry. For a 5-node cluster, 3 nodes constitute an authoritative quorum.

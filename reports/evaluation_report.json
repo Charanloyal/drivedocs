@@ -1,0 +1,312 @@
+{
+  "timestamp": "2026-10-25T07:09:27.761209",
+  "total_queries": 8,
+  "text_queries": 0,
+  "visual_queries": 6,
+  "unsupported_queries": 2,
+  "mean_recall_at_5": 1.0,
+  "mean_mrr": 1.0,
+  "mean_precision_at_5": 0.6333,
+  "mean_citation_correctness": 0.875,
+  "mean_groundedness_score": 0.9167,
+  "unsupported_detection_accuracy": 1.0,
+  "avg_latency_ms": 35.0,
+  "query_results": [
+    {
+      "query_id": "q1_waveguide_loss",
+      "query": "What is the optical transmission loss of the silicon nitride waveguide bus?",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a"
+      ],
+      "retrieved_filenames": [
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf"
+      ],
+      "retrieved_pages": [
+        1,
+        1,
+        2,
+        2,
+        2
+      ],
+      "top_score": 0.5308,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 1.0,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 67.23,
+      "generated_answer": "The optical transmission loss\nof the primary waveguide bus is precisely calibrated to 0.12 dB/cm across the telecommunication C-band [Source: quantum_photonics_spec.pdf, Page 1] Quantum Photonics Integrated Circuit Specification\nDocument Reference: QPIC-TR-2026-V4 | Page 1 Architecture Overview\nPhotonic quantum processors harness discrete photons as information-carrying qubits, leveraging\nintegrated silicon nitride (SiN) waveguides for phase-stable spatial routing. [Source: quantum_photonics_spec.pdf, Page 1] A reconfigurable triangular lattice of Mach-Zehnder interferometers provides universal linear\noptical unitaries. [Source: quantum_photonics_spec.pdf, Page 1]\n\n**Visual Reference**: Supported by diagram in quantum_photonics_spec.pdf (Page 2).",
+      "citations_count": 2,
+      "images_count": 2
+    },
+    {
+      "query_id": "q2_detector_efficiency",
+      "query": "What is the peak quantum efficiency of the SNSPD single-photon detector and at what wavelength?",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_94523f6d1415"
+      ],
+      "retrieved_filenames": [
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "architecture_diagram.png"
+      ],
+      "retrieved_pages": [
+        2,
+        2,
+        1,
+        2,
+        1
+      ],
+      "top_score": 0.5364,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 0.8,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 31.83,
+      "generated_answer": "The detection system achieves a peak quantum\nefficiency of 98.4% at 1550 nm telecommunication wavelength, operating in a closed-cycle pulse-tube [Source: quantum_photonics_spec.pdf, Page 2] Figure 2.1: Calibrated Single-Photon Detector Quantum Efficiency across the 1200-1700 nm optical band. [Source: quantum_photonics_spec.pdf, Page 2] Detection Subsystem & Cryostat Calibration\nDocument Reference: QPIC-TR-2026-V4 | Page 2 Detector Performance\nDetection occurs using Superconducting Nanowire Single-Photon Detectors (SNSPDs) micro-fabricated\nfrom amorphous molybdenum silicide (MoSi) thin films. [Source: quantum_photonics_spec.pdf, Page 2]\n\n**Visual Reference**: Supported by diagram in quantum_photonics_spec.pdf (Page 2).",
+      "citations_count": 2,
+      "images_count": 2
+    },
+    {
+      "query_id": "q3_agent_rate_limit",
+      "query": "What is the maximum API throughput rate limit for agent workers?",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_31585dbea0dd",
+        "doc_31585dbea0dd",
+        "doc_22c33914801a",
+        "doc_94523f6d1415",
+        "doc_d7fec8cfaee2"
+      ],
+      "retrieved_filenames": [
+        "agent_safety_protocol.md",
+        "agent_safety_protocol.md",
+        "quantum_photonics_spec.pdf",
+        "architecture_diagram.png",
+        "distributed_systems_notes.txt"
+      ],
+      "retrieved_pages": [
+        1,
+        1,
+        2,
+        1,
+        1
+      ],
+      "top_score": 0.6755,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 0.4,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 28.38,
+      "generated_answer": "**API Rate Limiting**: The agent orchestrator enforces a maximum throughput ceiling of 120 calls per minute per agent worker. [Source: agent_safety_protocol.md, Page 1] # Autonomous Agent Safety Protocols & Governance\r\n\r\n## System Boundary Enforcements\r\nAutonomous AI agents operating in continuous execution environments must adhere to strict runtime containment rules. [Source: agent_safety_protocol.md, Page 1]\n\n**Visual Reference**: Supported by diagram in quantum_photonics_spec.pdf (Page 2).",
+      "citations_count": 3,
+      "images_count": 2
+    },
+    {
+      "query_id": "q4_raft_heartbeat",
+      "query": "What is the periodic heartbeat interval dispatched by the Raft leader?",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_d7fec8cfaee2",
+        "doc_d7fec8cfaee2",
+        "doc_22c33914801a",
+        "doc_31585dbea0dd",
+        "doc_94523f6d1415"
+      ],
+      "retrieved_filenames": [
+        "distributed_systems_notes.txt",
+        "distributed_systems_notes.txt",
+        "quantum_photonics_spec.pdf",
+        "agent_safety_protocol.md",
+        "architecture_diagram.png"
+      ],
+      "retrieved_pages": [
+        1,
+        1,
+        2,
+        1,
+        1
+      ],
+      "top_score": 0.526,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 0.4,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 28.59,
+      "generated_answer": "The cluster leader periodically dispatches empty AppendEntries RPC heartbeats at a fixed interval of 150 milliseconds to maintain cluster dominance and reset follower election countdown timers. [Source: distributed_systems_notes.txt, Page 1] DISTRIBUTED CONSENSUS SPECIFICATION: RAFT ENGINE v2\r\n\r\n1. [Source: distributed_systems_notes.txt, Page 1] LEADER ELECTION PROTOCOL\r\nNodes initialize in the Follower state. [Source: distributed_systems_notes.txt, Page 1]\n\n**Visual Reference**: Supported by diagram in quantum_photonics_spec.pdf (Page 2).",
+      "citations_count": 2,
+      "images_count": 2
+    },
+    {
+      "query_id": "q5_visual_architecture",
+      "query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_94523f6d1415",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_31585dbea0dd",
+        "doc_d7fec8cfaee2"
+      ],
+      "retrieved_filenames": [
+        "architecture_diagram.png",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "agent_safety_protocol.md",
+        "distributed_systems_notes.txt"
+      ],
+      "retrieved_pages": [
+        1,
+        2,
+        1,
+        1,
+        1
+      ],
+      "top_score": 0.2772,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 0.2,
+      "citation_correctness": 0.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 33.83,
+      "generated_answer": "Quantum Photonics Integrated Circuit Specification\nDocument Reference: QPIC-TR-2026-V4 | Page 1 Architecture Overview\nPhotonic quantum processors harness discrete photons as information-carrying qubits, leveraging\nintegrated silicon nitride (SiN) waveguides for phase-stable spatial routing. [Source: quantum_photonics_spec.pdf, Page 1] **Audit Trail Immutability**: All tool payloads, state transitions, and file mutations are committed to an append-only cryptographic ledger with SHA-256 block signatures. [Source: agent_safety_protocol.md, Page 1] The cluster leader periodically dispatches empty AppendEntries RPC heartbeats at a fixed interval of 150 milliseconds to maintain cluster dominance and reset follower election countdown timers. [Source: distributed_systems_notes.txt, Page 1]\n\n**Visual Reference**: Supported by diagram in architecture_diagram.png (Page 1).",
+      "citations_count": 5,
+      "images_count": 2
+    },
+    {
+      "query_id": "q6_visual_efficiency_curve",
+      "query": "Show the calibrated quantum efficiency curve versus wavelength chart.",
+      "is_unsupported": false,
+      "retrieved_doc_ids": [
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a"
+      ],
+      "retrieved_filenames": [
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf"
+      ],
+      "retrieved_pages": [
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      "top_score": 0.3895,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 1.0,
+      "citation_correctness": 1.0,
+      "groundedness_score": 0.5,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 28.12,
+      "generated_answer": "Figure 2.1: Calibrated Single-Photon Detector Quantum Efficiency across the 1200-1700 nm optical band. [Source: quantum_photonics_spec.pdf, Page 2] The detection system achieves a peak quantum\nefficiency of 98.4% at 1550 nm telecommunication wavelength, operating in a closed-cycle pulse-tube [Source: quantum_photonics_spec.pdf, Page 2] Quantum Photonics Integrated Circuit Specification\nDocument Reference: QPIC-TR-2026-V4 | Page 1 Architecture Overview\nPhotonic quantum processors harness discrete photons as information-carrying qubits, leveraging\nintegrated silicon nitride (SiN) waveguides for phase-stable spatial routing. [Source: quantum_photonics_spec.pdf, Page 1]\n\n**Visual Reference**: Supported by diagram in quantum_photonics_spec.pdf (Page 2).",
+      "citations_count": 4,
+      "images_count": 2
+    },
+    {
+      "query_id": "q7_unsupported_apple_stock",
+      "query": "What was the stock price of Apple Computer Inc on January 15, 1999?",
+      "is_unsupported": true,
+      "retrieved_doc_ids": [
+        "doc_22c33914801a",
+        "doc_94523f6d1415",
+        "doc_31585dbea0dd",
+        "doc_22c33914801a",
+        "doc_22c33914801a"
+      ],
+      "retrieved_filenames": [
+        "quantum_photonics_spec.pdf",
+        "architecture_diagram.png",
+        "agent_safety_protocol.md",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf"
+      ],
+      "retrieved_pages": [
+        2,
+        1,
+        1,
+        1,
+        2
+      ],
+      "top_score": 0.2167,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 1.0,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 29.33,
+      "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
+      "citations_count": 0,
+      "images_count": 0
+    },
+    {
+      "query_id": "q8_unsupported_baking_recipe",
+      "query": "What is the traditional culinary recipe and oven temperature for baking chocolate chip cookies?",
+      "is_unsupported": true,
+      "retrieved_doc_ids": [
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_22c33914801a",
+        "doc_94523f6d1415",
+        "doc_22c33914801a"
+      ],
+      "retrieved_filenames": [
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "quantum_photonics_spec.pdf",
+        "architecture_diagram.png",
+        "quantum_photonics_spec.pdf"
+      ],
+      "retrieved_pages": [
+        2,
+        2,
+        1,
+        1,
+        1
+      ],
+      "top_score": 0.2102,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 1.0,
+      "precision_at_5": 1.0,
+      "citation_correctness": 1.0,
+      "groundedness_score": 1.0,
+      "unsupported_handled_correctly": true,
+      "latency_ms": 32.68,
+      "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
+      "citations_count": 0,
+      "images_count": 0
+    }
+  ]
+}
