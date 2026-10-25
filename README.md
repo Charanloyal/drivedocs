@@ -6,10 +6,35 @@
 [![HuggingFace Transformers](https://img.shields.io/badge/HuggingFace-Transformers-yellow.svg)](https://huggingface.co/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests: 32 Passed](https://img.shields.io/badge/Tests-32%20Passed-brightgreen.svg)](tests/)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Charanloyal/drivedocs)
 
 > **DriveDocs** is a high-performance multimodal Retrieval-Augmented Generation (RAG) assistant designed to ingest multi-page documents (PDF, Markdown, TXT) and technical diagrams (PNG, JPEG), index them in dual FAISS vector spaces using Hugging Face sentence transformers and CLIP vision models, and synthesize evidence-grounded answers with verifiable citations.
 
 ---
+
+## 🚀 Live Demo & 1-Click Render Deployment
+
+DriveDocs includes an interactive dark-mode glassmorphic dashboard pre-loaded with sample documents and visual diagrams for instant testing.
+
+### Option A: 1-Click Deploy to Render
+Click the button below to deploy your own instance of DriveDocs directly on Render:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Charanloyal/drivedocs)
+
+### Option B: Manual Render Deployment Steps
+1. Fork or push this repository to your GitHub account (`https://github.com/Charanloyal/drivedocs`).
+2. Log into the [Render Dashboard](https://dashboard.render.com/) and click **New +** $\to$ **Blueprint** (or **Web Service**).
+3. Connect your `drivedocs` repository. Render automatically discovers [`render.yaml`](render.yaml).
+4. Render builds the project, installs dependencies, runs `seed_sample_data.py`, and boots the FastAPI server on `$PORT`.
+5. Open your public URL (`https://drivedocs-xxxx.onrender.com`) to access the live web UI.
+
+### Pre-loaded Live Demo Test Queries
+The dashboard comes with ready-to-test preset pills:
+- 🔬 **Waveguide Loss (Page 1)**: *"What is the optical transmission loss of the silicon nitride waveguide bus?"* $\to$ Returns exact 0.12 dB/cm fact with `[Source: quantum_photonics_spec.pdf, Page 1]`.
+- 📊 **SNSPD Efficiency (Page 2 + Chart)**: *"What is the peak quantum efficiency of the SNSPD single-photon detector?"* $\to$ Returns 98.4% efficiency claim, Page 2 citation, and visual detector efficiency curve diagram.
+- 📐 **System Architecture**: *"Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA."* $\to$ Retrieves and displays the system diagram thumbnail via CLIP text-to-image matching.
+- ⏱️ **Raft Heartbeat**: *"What is the periodic heartbeat interval dispatched by the Raft leader?"* $\to$ Returns 150 ms consensus spec with text citation.
+- 🛡️ **Mars Capital (Refusal Demo)**: *"What is the capital city of Mars in the year 3000?"* $\to$ Verifies 100% negative query defense: *"I cannot find sufficient evidence in the provided documents to answer this question."*
 
 ## 1. System Architecture
 

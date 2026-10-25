@@ -55,10 +55,27 @@ async def lifespan(app: FastAPI):
     generator = GroundedMultimodalGenerator()
 
     # 2. Try loading any previously saved indexes
-    if retriever.load(settings.indexes_dir):
+    loaded_ok = retriever.load(settings.indexes_dir)
+    if loaded_ok and (text_index.count() > 0 or image_index.count() > 0):
         print(f"[+] Loaded existing vector indexes: {text_index.count()} text chunks, {image_index.count()} images.")
     else:
-        print("[*] Initialized fresh vector indexes.")
+        # Auto-seed demo corpus if index is empty (e.g. fresh Render cloud deployment)
+        sample_dir = settings.project_root / "data" / "sample"
+        if sample_dir.exists():
+            demo_files = [
+                sample_dir / "quantum_photonics_spec.pdf",
+                sample_dir / "agent_safety_protocol.md",
+                sample_dir / "distributed_systems_notes.txt",
+                sample_dir / "architecture_diagram.png",
+            ]
+            for f in demo_files:
+                if f.exists():
+                    try:
+                        parsed = ingestion_mgr.ingest_file(f, allow_duplicates=True)
+                        retriever.index_parsed_document(parsed)
+                        print(f"[+] Auto-seeded demo corpus: {f.name} ({len(parsed.chunks)} chunks, {len(parsed.images)} images)")
+                    except Exception as e:
+                        print(f"[!] Note on seeding {f.name}: {e}")
 
     state["text_index"] = text_index
     state["image_index"] = image_index
@@ -525,6 +542,38 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       margin: 0;
       padding: 0.6rem 1.25rem;
     }
+    .demo-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.1rem 0.2rem;
+    }
+    .demo-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #94a3b8;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .demo-pill {
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      font-size: 0.74rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .demo-pill:hover {
+      background: rgba(99, 102, 241, 0.28);
+      border-color: #818cf8;
+      color: #fff;
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
@@ -572,9 +621,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="message assistant">
           <div class="bubble">
             <strong>Welcome to DriveDocs!</strong><br>
-            I am a Multimodal Retrieval-Augmented Generation assistant. You can upload multi-page documents (PDF, TXT, Markdown) or diagrams (PNG, JPEG), and ask questions. I retrieve relevant text and visual evidence and answer with verifiable citations.
+            I am a Multimodal Retrieval-Augmented Generation assistant. You can upload multi-page documents (PDF, TXT, Markdown) or diagrams (PNG, JPEG), and ask questions. I retrieve relevant text and visual evidence and answer with verifiable citations.<br><br>
+            <em>👉 Click any of the pre-loaded demo questions below to test instant multimodal retrieval and grounded answering!</em>
           </div>
         </div>
+      </div>
+
+      <div class="demo-bar">
+        <span class="demo-label">⚡ Live Demo Questions:</span>
+        <button class="demo-pill" onclick="askPreset('What is the optical transmission loss of the silicon nitride waveguide bus?')">🔬 Waveguide Loss (Page 1)</button>
+        <button class="demo-pill" onclick="askPreset('What is the peak quantum efficiency of the SNSPD single-photon detector?')">📊 SNSPD Efficiency (Page 2 + Chart)</button>
+        <button class="demo-pill" onclick="askPreset('Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.')">📐 System Architecture Diagram</button>
+        <button class="demo-pill" onclick="askPreset('What is the periodic heartbeat interval dispatched by the Raft leader?')">⏱️ Raft Heartbeat</button>
+        <button class="demo-pill" onclick="askPreset('What is the capital city of Mars in the year 3000?')">🛡️ Refusal / Negative Query</button>
       </div>
 
       <div class="chat-input-bar">
@@ -586,6 +645,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   <script>
     let selectedFile = null;
+
+    function askPreset(query) {
+      document.getElementById('chatInput').value = query;
+      sendChatMessage();
+    }
 
     async function checkHealth() {
       try {

@@ -1,0 +1,28 @@
+# Render Cloud Deployment Blueprint
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: drivedocs
+    runtime: python
+    region: oregon
+    plan: free
+    autoDeploy: true
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt && pip install -e . && python scripts/seed_sample_data.py"
+    startCommand: "uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DEVICE
+        value: cpu
+      - key: LLM_PROVIDER
+        value: extractive
+      - key: PYTHONPATH
+        value: src
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: HF_HUB_DISABLE_SYMLINKS_WARNING
+        value: "1"

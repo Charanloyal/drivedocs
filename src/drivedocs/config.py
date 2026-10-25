@@ -33,7 +33,7 @@ class Settings:
         self.app_name: str = app_cfg.get("name", "DriveDocs")
         self.app_version: str = app_cfg.get("version", "0.1.0")
         self.host: str = os.getenv("DRIVEDOCS_HOST", app_cfg.get("host", "0.0.0.0"))
-        self.port: int = int(os.getenv("DRIVEDOCS_PORT", app_cfg.get("port", 8000)))
+        self.port: int = int(os.getenv("PORT", os.getenv("DRIVEDOCS_PORT", app_cfg.get("port", 8000))))
         self.debug: bool = os.getenv("DRIVEDOCS_DEBUG", "false").lower() == "true"
 
         # Hardware
