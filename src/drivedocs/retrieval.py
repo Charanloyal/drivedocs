@@ -131,16 +131,30 @@ class MultimodalRetriever:
 
         # Over-fetch slightly so de-duplication can still return k results.
         text_matches = self.dedupe_text(self.text_index.search(query, top_k=k_text + 2))[:k_text]
+        image_matches: List[ImageSearchResult] = []
+        if k_img > 0 and self.image_index.count() > 0:
+            image_matches = self.image_index.search_by_text(query, top_k=k_img)
+        return self.assemble(query, text_matches, image_matches)
+
+    def assemble(
+        self,
+        query: str,
+        text_matches: List[TextSearchResult],
+        image_matches: List[ImageSearchResult],
+        visual_intent: Optional[bool] = None,
+    ) -> MultimodalEvidence:
+        """Apply the per-modality relevance rules and rank fusion to already-retrieved candidates.
+
+        Used by ``retrieve`` and by the agent, which gathers candidates through several tool calls.
+        """
         # Two-level rule: the strict gate decides whether there is evidence at all; once it passes, passages above
         # the (lower) context floor may also contribute sentences to the answer.
         gate_passed = any(r.score >= self.min_similarity_threshold for r in text_matches)
         for res in text_matches:
             res.accepted = gate_passed and res.score >= min(self.text_context_min_score, self.min_similarity_threshold)
 
-        visual_intent = has_visual_intent(query)
-        image_matches: List[ImageSearchResult] = []
-        if k_img > 0 and self.image_index.count() > 0:
-            image_matches = self.image_index.search_by_text(query, top_k=k_img)
+        if visual_intent is None:
+            visual_intent = has_visual_intent(query)
 
         accepted_text = [r for r in text_matches if r.accepted]
         # Co-location only counts passages that passed the strict gate, not the wider context pool.
@@ -148,8 +162,10 @@ class MultimodalRetriever:
             (r.chunk.doc_id, r.chunk.page_number) for r in text_matches if r.score >= self.min_similarity_threshold
         }
         accepted_image_ids: Set[str] = set()
-        for res in image_matches:
-            reason = self.accept_image(res, visual_intent, text_pages)
+        for i, res in enumerate(image_matches):
+            # The looser visual-query threshold only admits the best-ranked image: CLIP similarities of different
+            # diagrams are often within 0.01-0.03 of each other, so runners-up need a strong match or co-location.
+            reason = self.accept_image(res, visual_intent and i == 0, text_pages)
             res.match_reason = reason
             res.accepted = reason is not None
             if reason:

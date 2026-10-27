@@ -15,6 +15,23 @@ from drivedocs.schemas import TextChunk
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 _FENCE = re.compile(r"^\s*(```|~~~)")
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
+
+
+def _list_items(body: str) -> List[str]:
+    """The items of a section that consists only of a flat list (continuation lines stay with their item)."""
+    lines = [line for line in body.strip().split("\n") if line.strip()]
+    if not lines or not _LIST_ITEM.match(lines[0]):
+        return []
+    items: List[str] = []
+    for line in lines:
+        if _LIST_ITEM.match(line):
+            items.append(line.strip())
+        elif line.startswith((" ", "\t")) and items:
+            items[-1] += " " + line.strip()
+        else:
+            return []  # prose mixed with the list: keep the section together
+    return items
 
 
 class TextChunker:
@@ -76,19 +93,26 @@ class TextChunker:
         return chunks
 
     def chunk_markdown(self, text: str, doc_id: str, filename: str, page_number: int = 1) -> List[TextChunk]:
-        """Chunk Markdown section by section, attaching the heading path (e.g. 'Guide > Setup') to each chunk."""
+        """Chunk Markdown section by section, attaching the heading path (e.g. 'Guide > Setup') to each chunk.
+
+        A section that is purely a bullet/numbered list is indexed one item per chunk: items of a list (e.g. the tasks
+        due at one service interval) are usually independent facts, and embedding them together dilutes each one.
+        """
         chunks: List[TextChunk] = []
         for section_path, body in split_markdown_sections(text):
-            chunks.extend(
-                self.chunk_page_text(
-                    body,
-                    doc_id=doc_id,
-                    filename=filename,
-                    page_number=page_number,
-                    start_chunk_idx=len(chunks),
-                    section=section_path,
+            items = _list_items(body)
+            pieces = items if len(items) >= 2 else [body]
+            for piece in pieces:
+                chunks.extend(
+                    self.chunk_page_text(
+                        piece,
+                        doc_id=doc_id,
+                        filename=filename,
+                        page_number=page_number,
+                        start_chunk_idx=len(chunks),
+                        section=section_path,
+                    )
                 )
-            )
         return chunks
 
     def split_text(self, text: str) -> List[str]:

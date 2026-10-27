@@ -96,7 +96,7 @@ def test_whitespace_only_text_is_rejected(mgr):
 
 
 def test_corrupted_pdf_is_rejected(mgr):
-    good = (SAMPLE_DIR / "quantum_photonics_spec.pdf").read_bytes()
+    good = (SAMPLE_DIR / "aurora_s5_owner_manual.pdf").read_bytes()
     corrupted = good[:200] + b"\x00garbage" * 50
     with pytest.raises(MalformedDocumentError):
         mgr.ingest_bytes("broken.pdf", corrupted)
@@ -133,12 +133,13 @@ def test_pdf_page_limit(mgr):
 
 def test_sample_pdf_extraction():
     m = DocumentIngestionManager(images_dir=Path(__import__("tempfile").mkdtemp()))
-    parsed = m.ingest_file(SAMPLE_DIR / "quantum_photonics_spec.pdf")
-    assert parsed.metadata.page_count == 2
-    assert {c.page_number for c in parsed.chunks} == {1, 2}
-    assert any("0.12 dB/cm" in c.text and c.page_number == 1 for c in parsed.chunks)
-    assert any("98.4%" in c.text and c.page_number == 2 for c in parsed.chunks)
-    assert parsed.images and parsed.images[0].page_number == 2
+    parsed = m.ingest_file(SAMPLE_DIR / "aurora_s5_owner_manual.pdf")
+    assert parsed.metadata.page_count == 6
+    assert {c.page_number for c in parsed.chunks} == {1, 2, 3, 4, 5, 6}
+    assert any("35 psi" in c.text and c.page_number == 2 for c in parsed.chunks)
+    assert any("4.8 quarts" in c.text and c.page_number == 3 for c in parsed.chunks)
+    # Diagrams: warning lights (p1), tire placard (p2), jump-start (p4), fuse box (p5).
+    assert sorted(i.page_number for i in parsed.images) == [1, 2, 4, 5]
 
 
 def test_markdown_heading_context(mgr):

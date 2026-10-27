@@ -1,5 +1,10 @@
 # DriveDocs Implementation Audit
 
+> **Historical document.** This audit describes revision `fc15031` (v0.2, the generic photonics/Raft demo corpus) and
+> the fixes made in response. The current version (v0.3) adds the LangChain agent, the vehicle-manual corpus,
+> guardrails and the security evaluation; see the [README](../README.md), [RAG_DESIGN.md](RAG_DESIGN.md) and
+> [EVALUATION_METHODOLOGY.md](EVALUATION_METHODOLOGY.md) for the current design and results.
+
 **Audit date:** 2026-10-26
 **Audited revision:** `fc15031` (`main`)
 **Method:** I read every source file, script, test, config and deployment file. I ran the existing test suite, the

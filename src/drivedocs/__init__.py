@@ -1,9 +1,8 @@
-"""DriveDocs: Multimodal Retrieval-Augmented Generation (RAG) System.
+"""DriveDocs: a multimodal RAG assistant for vehicle manuals.
 
-Ingests multi-page documents (PDF, TXT, Markdown) and images (PNG, JPEG),
-builds FAISS vector indexes for text and CLIP image embeddings, and provides
-grounded question-answering with exact citations.
+A LangChain tool-calling agent answers questions over owner's-manual text and diagrams using MiniLM and CLIP embeddings
+in two FAISS indexes, with verified page-level citations and guardrails against prompt injection and PII leaks.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 __author__ = "Charanloyal"

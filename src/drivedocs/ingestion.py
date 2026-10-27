@@ -25,6 +25,7 @@ from PIL import Image, ImageOps
 
 from drivedocs.chunking import TextChunker, reflow_lines
 from drivedocs.config import settings
+from drivedocs.guardrails import find_pii, is_injection, redact_pii
 from drivedocs.schemas import DocumentMetadata, ImageItem, TextChunk
 
 logger = logging.getLogger("drivedocs.ingestion")
@@ -263,12 +264,49 @@ class DocumentIngestionManager:
 
         doc_id = doc_id_for_hash(content_hash)
         if ext == ".pdf":
-            return self._parse_pdf(doc_id, safe_filename, content, content_hash)
-        if ext in TEXT_EXTENSIONS:
-            return self._parse_text(doc_id, safe_filename, content, content_hash, ext[1:])
-        if ext in IMAGE_EXTENSIONS:
-            return self._parse_standalone_image(doc_id, safe_filename, content, content_hash, ext[1:])
-        raise UnsupportedFileTypeError(f"Unhandled file extension: {ext}")
+            parsed = self._parse_pdf(doc_id, safe_filename, content, content_hash)
+        elif ext in TEXT_EXTENSIONS:
+            parsed = self._parse_text(doc_id, safe_filename, content, content_hash, ext[1:])
+        elif ext in IMAGE_EXTENSIONS:
+            parsed = self._parse_standalone_image(doc_id, safe_filename, content, content_hash, ext[1:])
+        else:
+            raise UnsupportedFileTypeError(f"Unhandled file extension: {ext}")
+        return self._apply_guardrails(parsed)
+
+    @staticmethod
+    def _apply_guardrails(parsed: "ParsedDocument") -> "ParsedDocument":
+        """Redact personal data before anything is embedded or indexed, and flag instruction-like text."""
+        pii_values: Dict[str, set] = {}
+        injected_pages: List[int] = []
+        for chunk in parsed.chunks:
+            if settings.redact_pii:
+                for kind, value in find_pii(chunk.text):
+                    pii_values.setdefault(kind, set()).add(value)
+                chunk.text, _ = redact_pii(chunk.text)
+                if chunk.section:
+                    chunk.section, _ = redact_pii(chunk.section)
+                chunk.char_count = len(chunk.text)
+            if settings.detect_prompt_injection:
+                if is_injection(chunk.text) and chunk.page_number not in injected_pages:
+                    injected_pages.append(chunk.page_number)
+                if chunk.section and is_injection(chunk.section):
+                    # Headings are prepended to embedded text and quoted with list items: drop injected parts.
+                    parts = [p for p in chunk.section.split(" > ") if not is_injection(p)]
+                    chunk.section = " > ".join(parts) or None
+                    if chunk.page_number not in injected_pages:
+                        injected_pages.append(chunk.page_number)
+        if pii_values:
+            summary = ", ".join(f"{len(v)} {k.lower()}" for k, v in sorted(pii_values.items()))
+            parsed.metadata.warnings.append(
+                f"Personal data was redacted before indexing ({summary}); it cannot be retrieved or returned."
+            )
+        if injected_pages:
+            pages = ", ".join(str(p) for p in injected_pages)
+            parsed.metadata.warnings.append(
+                f"Instruction-like text (possible prompt injection) was found on page(s) {pages}. It is never "
+                "followed, quoted in answers or sent to a language model."
+            )
+        return parsed
 
     def ingest_bytes(self, filename: str, content: bytes, allow_duplicates: bool = False) -> ParsedDocument:
         """Parse and register a document (no vector indexing; see DriveDocsService for the full pipeline)."""

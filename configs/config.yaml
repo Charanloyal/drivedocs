@@ -1,7 +1,7 @@
 app:
   name: "DriveDocs"
-  version: "0.2.0"
-  description: "AI document intelligence platform (multimodal RAG over text and diagrams)"
+  version: "0.3.0"
+  description: "Multimodal RAG assistant for vehicle manuals (LangChain agent, CLIP + FAISS, guardrails)"
   host: "0.0.0.0"
   port: 8000
   debug: false
@@ -44,8 +44,8 @@ chunking:
     - ""
 
 embeddings:
-  # "onnx" (default): ONNX Runtime, no PyTorch. all-MiniLM-L6-v2 (fp32, identical to PyTorch) + CLIP ViT-B/32 with
-  #                   4-bit weights. ~270 MB of model files; measured peak ~450 MB RSS with image search enabled.
+  # "onnx" (default): ONNX Runtime, no PyTorch. all-MiniLM-L6-v2 (int8) + CLIP ViT-B/32 with 4-bit weights.
+  #                   ~210 MB of model files; leaves room for the LangChain agent on a 512 MB instance.
   # "transformers":   full-precision PyTorch models (pip install torch transformers); ~1 GB RAM.
   # "mock":           deterministic hashing embeddings for tests only.
   # Variant choice (quality vs. memory vs. speed) is measured in docs/RAG_DESIGN.md §9.
@@ -53,7 +53,9 @@ embeddings:
   text:
     model_name: "sentence-transformers/all-MiniLM-L6-v2"   # transformers backend
     onnx_repo: "Xenova/all-MiniLM-L6-v2"                   # onnx backend (same model, exported to ONNX)
-    onnx_file: "onnx/model.onnx"                           # fp32; onnx/model_quantized.onnx (int8) saves ~65 MB
+    # int8 (default): -65 MB RSS vs fp32 with identical evaluation results on the vehicle corpus (docs/RAG_DESIGN.md
+    # §9). Use onnx/model.onnx for fp32.
+    onnx_file: "onnx/model_quantized.onnx"
     max_length: 256
     dimension: 384
     batch_size: 32
@@ -101,3 +103,22 @@ generation:
   max_tokens: 512
   timeout_seconds: 30
   max_answer_sentences: 3
+
+agent:
+  # LangChain tool-calling agent in front of the retriever (POST /chat with mode="agent", the default).
+  enabled: true
+  # "auto": use an LLM planner (ChatOpenAI / ChatGoogleGenerativeAI) when LLM_PROVIDER has an API key and its
+  #         LangChain integration package is installed; otherwise the deterministic offline router.
+  # "router": always use the offline router (no network, no key).
+  planner: "auto"
+  max_steps: 4          # model turns per question (each turn may call several tools)
+  max_subquestions: 3   # compound questions are split into at most this many sub-questions
+
+security:
+  # Mask e-mails, phone numbers, VINs, card numbers, SSNs, street addresses and labelled personal fields
+  # (Customer:, Owner:, Address: ...) before text is embedded, indexed or returned.
+  redact_pii: true
+  # Refuse questions that ask for a person's contact or payment details.
+  block_pii_requests: true
+  # Flag instruction-like text in questions and documents; it is never followed, quoted or sent to an LLM.
+  detect_prompt_injection: true

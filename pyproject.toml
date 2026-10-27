@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drivedocs"
-version = "0.2.0"
-description = "DriveDocs AI: document intelligence with multimodal retrieval (MiniLM text + CLIP images) and verified citations"
+version = "0.3.0"
+description = "DriveDocs AI: LangChain multimodal RAG assistant for vehicle manuals (CLIP + FAISS, verified citations, injection/PII guardrails)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -28,9 +28,17 @@ dependencies = [
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
+    "langchain-core>=0.3.0",
 ]
 
 [project.optional-dependencies]
+# LLM tool-calling planners for the LangChain agent (used when the matching API key is configured).
+openai = [
+    "langchain-openai>=0.3.0",
+]
+gemini = [
+    "langchain-google-genai>=2.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "reportlab>=4.0.0",

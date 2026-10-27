@@ -282,6 +282,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
 @keyframes shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton, .passage.flash { animation: none; } }
 
+/* Agent trace and guardrails */
+.composer select { flex: 0 0 auto; width: auto; padding-right: 1.8rem; }
+.agent-pill { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 650; color: #9ec5ff; border: 1px solid rgba(79, 140, 255, 0.35); background: rgba(79, 140, 255, 0.1); }
+.trace { border: 1px solid rgba(79, 140, 255, 0.28); background: linear-gradient(180deg, rgba(79, 140, 255, 0.07), rgba(139, 92, 246, 0.04)); border-radius: var(--radius-sm); padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.trace p { margin: 0; }
+.trace-head strong { font-size: 0.86rem; }
+.trace-steps { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; }
+.trace-steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; }
+.trace-steps code { font-family: var(--mono); font-size: 0.74rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.05rem 0.4rem; color: var(--text); overflow-wrap: anywhere; }
+.tool { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 6px; }
+.tool.txt { color: #9ec5ff; background: rgba(79, 140, 255, 0.14); }
+.tool.img { color: #d8c8ff; background: rgba(139, 92, 246, 0.18); }
+.subq { display: inline-block; margin: 0.15rem 0.4rem 0 0; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--surface-2); color: var(--text); }
+.section-title { font-size: 1rem; margin: 1.4rem 0 0.7rem; }
+
 @media (max-width: 1000px) {
   .hero, .grid-3, .grid-2 { grid-template-columns: 1fr; }
   .span-2 { grid-column: auto; }
@@ -292,5 +307,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
   .topbar { flex-wrap: wrap; gap: 0.6rem; }
   .tabs { order: 3; flex-basis: 100%; }
   .examples { grid-template-columns: 1fr; }
+  .composer { flex-wrap: wrap; }
+  .composer textarea { flex-basis: 100%; }
   .doc-table th:nth-child(4), .doc-table td:nth-child(4), .doc-table th:nth-child(7), .doc-table td:nth-child(7) { display: none; }
 }

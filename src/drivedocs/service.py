@@ -13,11 +13,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from drivedocs.agent import DriveDocsAgent
 from drivedocs.citations import CitationVerifier
 from drivedocs.config import Settings, settings as default_settings
 from drivedocs.generation import GroundedMultimodalGenerator
@@ -82,6 +84,20 @@ def _rss_mb() -> Optional[float]:
         return None
 
 
+def _release_memory() -> None:
+    """Return memory freed after start-up (PDF parsing, image batches) to the OS; glibc keeps it otherwise."""
+    import gc
+
+    gc.collect()
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:  # pragma: no cover - non-glibc Linux (e.g. musl)
+            pass
+
+
 class DriveDocsService:
     def __init__(self, config: Optional[Settings] = None, storage: Optional[LocalStorage] = None) -> None:
         self.config = config or default_settings
@@ -102,6 +118,7 @@ class DriveDocsService:
         )
         self.verifier = CitationVerifier(lookup_document=self.ingestion.find_by_filename)
         self.generator = GroundedMultimodalGenerator(verifier=self.verifier)
+        self.agent = DriveDocsAgent(self.retriever, self.generator, config=self.config)
 
         self._write_lock = threading.RLock()
         self._ready = threading.Event()
@@ -156,6 +173,7 @@ class DriveDocsService:
                 self.timings_ms["seed_samples"] = round((time.perf_counter() - t0) * 1000, 1)
 
             self.timings_ms["startup_total"] = round((time.perf_counter() - started) * 1000, 1)
+            _release_memory()
             self.phase = "ready"
             logger.info(
                 "DriveDocs ready in %.0f ms: %d documents, %d chunks, %d images, storage=%s",
@@ -439,17 +457,14 @@ class DriveDocsService:
         ]
 
     def chat(self, req: ChatRequest) -> ChatResponse:
-        t0 = time.perf_counter()
-        evidence = self.retriever.retrieve(req.query, top_k_text=req.top_k_text, top_k_images=req.top_k_images)
-        t_retrieve = time.perf_counter()
-        resp = self.generator.generate(req.query, evidence, include_debug=bool(req.include_debug))
-        latency = round((time.perf_counter() - t0) * 1000.0, 2)
-        resp.latency_ms = latency
-        if resp.debug_info is not None:
-            resp.debug_info["retrieval_ms"] = round((t_retrieve - t0) * 1000.0, 2)
-            resp.debug_info["total_latency_ms"] = latency
-            resp.debug_info["fused_ranking"] = [f.model_dump() for f in evidence.fused_results]
-        return resp
+        use_agent = req.mode == "agent" and self.config.agent_enabled
+        return self.agent.run(
+            req.query,
+            top_k_text=req.top_k_text,
+            top_k_images=req.top_k_images,
+            include_debug=bool(req.include_debug),
+            use_agent=use_agent,
+        )
 
     # Status ----------------------------------------------------------------------------------------------------
 
@@ -544,6 +559,12 @@ class DriveDocsService:
                 "image_min_score": self.retriever.image_min_score,
                 "image_min_score_visual_query": self.retriever.image_min_score_visual_query,
                 "image_min_score_colocated": self.retriever.image_min_score_colocated,
+            },
+            agent=self.agent.describe(),
+            security={
+                "redact_pii": self.config.redact_pii,
+                "block_pii_requests": self.config.block_pii_requests,
+                "detect_prompt_injection": self.config.detect_prompt_injection,
             },
         )
 

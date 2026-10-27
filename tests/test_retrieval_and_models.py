@@ -184,3 +184,17 @@ def test_device_never_auto_selects_gpu():
 
     assert Settings._resolve_device("cpu") == "cpu"
     assert Settings._resolve_device("auto") == "cpu"
+
+
+def test_visual_query_threshold_only_admits_the_top_image():
+    retriever = MultimodalRetriever(text_index=TextFAISSIndex(dimension=384), image_index=ImageFAISSIndex(enabled=False))
+    first, second = _image_result(0.29, page=5), _image_result(0.27, doc="doc_cccccccccccc", page=4)
+    second.rank = 2
+    evidence = retriever.assemble("Show me the fuse box diagram", [], [first, second])
+    assert [r.accepted for r in evidence.image_results] == [True, False]
+    assert evidence.image_results[0].match_reason == "visual_query_match"
+    # A runner-up can still be accepted by the strong-match rule.
+    strong = _image_result(0.31, doc="doc_dddddddddddd", page=3)
+    strong.rank = 2
+    evidence = retriever.assemble("Show me the fuse box diagram", [], [_image_result(0.32), strong])
+    assert all(r.accepted for r in evidence.image_results)

@@ -114,7 +114,7 @@ class Settings:
         )
         self.text_onnx_repo: str = _env_str("DRIVEDOCS_TEXT_ONNX_REPO", text_emb.get("onnx_repo", "Xenova/all-MiniLM-L6-v2"))
         self.text_onnx_file: str = _env_str(
-            "DRIVEDOCS_TEXT_ONNX_FILE", text_emb.get("onnx_file", "onnx/model.onnx")
+            "DRIVEDOCS_TEXT_ONNX_FILE", text_emb.get("onnx_file", "onnx/model_quantized.onnx")
         )
         self.text_max_length: int = int(text_emb.get("max_length", 256))
         self.text_dimension: int = int(text_emb.get("dimension", 384))
@@ -161,13 +161,34 @@ class Settings:
         self.sample_files: List[str] = runtime_cfg.get(
             "sample_files",
             [
-                "quantum_photonics_spec.pdf",
-                "agent_safety_protocol.md",
-                "distributed_systems_notes.txt",
-                "architecture_diagram.png",
+                "aurora_s5_owner_manual.pdf",
+                "maintenance_schedule.md",
+                "roadside_emergency_guide.txt",
+                "service_record_ro58213.txt",
+                "engine_bay_diagram.png",
             ],
         )
         self.reports_dir: Path = self.project_root / "reports"
+        self.security_dir: Path = self.project_root / "data" / "security"
+
+        # Security guardrails
+        sec_cfg = self.raw_config.get("security", {})
+        self.redact_pii: bool = _env_bool("DRIVEDOCS_REDACT_PII", bool(sec_cfg.get("redact_pii", True)))
+        self.block_pii_requests: bool = _env_bool(
+            "DRIVEDOCS_BLOCK_PII_REQUESTS", bool(sec_cfg.get("block_pii_requests", True))
+        )
+        self.detect_prompt_injection: bool = _env_bool(
+            "DRIVEDOCS_DETECT_PROMPT_INJECTION", bool(sec_cfg.get("detect_prompt_injection", True))
+        )
+
+        # LangChain agent
+        agent_cfg = self.raw_config.get("agent", {})
+        self.agent_enabled: bool = _env_bool("DRIVEDOCS_AGENT_ENABLED", bool(agent_cfg.get("enabled", True)))
+        # "auto": an LLM tool-calling planner when a provider key and its LangChain integration are available,
+        # otherwise the deterministic offline router. "router" forces the offline router.
+        self.agent_planner: str = (_env_str("DRIVEDOCS_AGENT_PLANNER", agent_cfg.get("planner", "auto")) or "auto").lower()
+        self.agent_max_steps: int = int(agent_cfg.get("max_steps", 4))
+        self.agent_max_subquestions: int = int(agent_cfg.get("max_subquestions", 3))
 
         # Retrieval
         ret_cfg = self.raw_config.get("retrieval", {})

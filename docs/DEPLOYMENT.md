@@ -4,41 +4,42 @@ DriveDocs AI is one FastAPI process that serves the REST API and the web UI. It 
 Service on the Free plan**, defined by [`render.yaml`](../render.yaml): no database, worker or extra service is needed.
 A [`Dockerfile`](../Dockerfile) is provided for other container platforms.
 
-> **Status: not deployed yet.** Everything below was verified locally against the exact Render configuration. A live
-> URL exists only after you complete [§4](#4-deploy-step-by-step) and the checks in
-> [§5](#5-verify-the-public-website-before-publishing-the-link) pass. Until then the README keeps a clearly marked
-> placeholder.
+> **Status: deployed** at <https://drivedocs-3xr4.onrender.com>. The v0.3 changes (LangChain agent, vehicle-manual
+> corpus, guardrails) deploy automatically when they are pushed to `main`; afterwards run the checks in
+> [§5](#5-verify-the-public-website-after-each-deploy).
 
-## 1. What was verified before deployment
+## 1. What was verified before deployment (v0.3)
 
 | Check | Result | How |
 | --- | --- | --- |
-| Clean production install | ✅ | Fresh virtualenv, `pip install -r requirements.txt`: 37 s, 270 MB of packages, **no PyTorch**; `pip check` clean |
-| Render's platform can install every dependency | ✅ | All pinned packages, including `onnxruntime 1.31.0` and `faiss-cpu 1.15.1`, publish Linux x86-64 wheels for CPython 3.14 (checked on PyPI) |
-| Automated tests | ✅ | `pytest`: **121 passed** (mock embeddings), **121 passed** (real ONNX models), 119 passed + 2 skipped (PyTorch backend) |
-| Build step | ✅ | `HF_HUB_OFFLINE=0 python scripts/download_models.py` into an empty `HF_HOME`: 8 files, 270 MB, ~25 s |
-| Runtime needs no network | ✅ | Started with the exact `startCommand`, every `render.yaml` variable, `PORT=10000`, and outbound traffic forced through a dead proxy |
-| Port binding & health | ✅ | Listens on `0.0.0.0:$PORT`; `/health` answers immediately; ready after ~1–2.5 s |
-| Start-up failure is detected | ✅ | With the model cache missing, the log names the cause and `/health` returns **503**, so Render fails the deploy instead of serving a broken app |
-| End-to-end API | ✅ | [`scripts/smoke_test.py`](../scripts/smoke_test.py): **22/22 checks** (health, ready, UI, documents, text search, text→image and image→image search, cited answer with real file/page, refusal, 4 invalid uploads, path traversal, evaluation, `/docs`) |
-| Memory under load | ✅ | 428 MB after start-up, **436 MB** after 30 concurrent chats + 9 uploads (60 PDF pages, 6 images) + 5 image searches |
-| Frontend ↔ backend | ✅ | Headless Chrome: cited answer (3/3 citations verified), refusal, visual-only answer, upload, XSS payloads rendered as text, no console errors |
-| Evaluation | ✅ | 19/19 queries pass with the ONNX models; p50 latency 9.9 ms |
-| Linux memory | ⚠️ not measured | No Linux environment was available; figures are from Windows (Linux RSS is usually similar or lower) |
+| Clean production install | ✅ | Fresh virtualenv, `pip install -r requirements.txt` (adds `langchain-core 1.7.0`), **no PyTorch** |
+| Render's platform can install every dependency | ✅ | All pinned packages publish Linux x86-64 wheels for CPython 3.14 (`langchain-core` and its dependencies are pure Python or ship cp314 wheels) |
+| Automated tests | ✅ | `pytest`: **203 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models) |
+| Build step | ✅ | `HF_HUB_OFFLINE=0 python scripts/download_models.py`: int8 MiniLM (23 MB) + 4-bit CLIP (183 MB) |
+| Runtime needs no network | ✅ | Started with `HF_HUB_OFFLINE=1` and the proxy unreachable; models load from the build cache |
+| Port binding & health | ✅ | `/health` answers immediately; ready after ~1.6 s locally (Render's shared CPU: expect 10–25 s) |
+| End-to-end API | ✅ | [`scripts/smoke_test.py`](../scripts/smoke_test.py): **30/30 checks** (health, ready, UI, agent and guardrail settings, corpus incl. redacted service record, text search, cited answer, agent tool calls, compound question, refusal, prompt-injection block, PII refusal, no PII in service-record answers, text→image and image→image search, engine-bay diagram via the agent, 4 invalid uploads, path traversal, evaluation, `/docs`) |
+| Memory | ✅ | ~396 MB RSS after start-up with the agent loaded, ~397 MB after repeated compound agent queries (Windows; v0.2 without the agent: 428 MB locally, 489 MB reported by Render) |
+| Frontend ↔ backend | ✅ | Headless Edge: agent trace, verified citations, diagram answers, guardrail badges, evaluation and security dashboards, mobile layout |
+| Evaluation | ✅ | QA 39/39 (Recall@5 100%, groundedness 100%), security 23/23 (0% attack success, 0% PII leaks); p50 6.4 ms |
+| Linux memory for v0.3 | ⚠️ not measured locally | No Linux/Docker environment was available; check `/ready` → `memory_rss_mb` after the deploy |
 | `docker build` | ⚠️ not run | Docker is not installed on the development machine |
-| An actual Render build | ⏳ pending | Requires your Render account (§4) |
 
 ## 2. Resources: why the Free plan works
 
-Embeddings run on **ONNX Runtime** instead of PyTorch: the same MiniLM model in fp32 (identical vectors) and CLIP
-ViT-B/32 with 4-bit weights (the end-to-end evaluation is unchanged). Details and the variant comparison are in
-[RAG_DESIGN.md §9](RAG_DESIGN.md#9-embedding-runtime-onnx-instead-of-pytorch).
+Embeddings run on **ONNX Runtime** instead of PyTorch: MiniLM with int8 weights and CLIP ViT-B/32 with 4-bit weights
+(the end-to-end evaluation is identical to fp32 MiniLM). Details and the variant comparison are in
+[RAG_DESIGN.md §10](RAG_DESIGN.md#10-embedding-runtime-onnx-instead-of-pytorch).
 
-| Configuration | RSS after start-up | RSS after stress run | Render plan |
-| --- | --- | --- | --- |
-| **Text + image search (demo default)** | 428 MB | 436 MB | **Free (512 MB)**, ~75 MB headroom |
-| Text only (`DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`) | ~250 MB | n/a | Free, large headroom |
-| Previous PyTorch stack, for comparison | 864 MB | ~1,000 MB | needed Standard (2 GB, paid) |
+| Configuration | RSS after start-up (local) | Render plan |
+| --- | --- | --- |
+| **v0.3 default: agent + text + image search, int8 MiniLM** | ~396 MB | **Free (512 MB)** |
+| v0.3 with fp32 MiniLM (`DRIVEDOCS_TEXT_ONNX_FILE=onnx/model.onnx`) | ~463 MB | Free, little headroom |
+| Text only (`DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`) | ~250 MB | Free, large headroom |
+| Previous PyTorch stack, for comparison | 864 MB | needed Standard (2 GB, paid) |
+
+The int8 switch exists because LangChain adds ~37 MB and the v0.2 build already reported 489 MB on Render. After
+start-up the service calls `malloc_trim(0)` on Linux so memory freed by seeding is returned to the OS.
 
 Extra safety settings in `render.yaml` for the small shared instance: one uvicorn worker, at most one inference at a
 time (`DRIVEDOCS_MAX_CONCURRENT_INFERENCE=1`), two ONNX threads, `MALLOC_ARENA_MAX=2`, 10 MB uploads and at most 100
@@ -70,8 +71,8 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
 
 ## 4. Deploy step by step
 
-**Prerequisite: push the code.** Render builds from GitHub, and the old version on `main` is what fails. Commit and
-push the reviewed changes first (`git add -A`, `git commit`, `git push origin main`).
+**Prerequisite: push the code.** Render builds from GitHub: commit and push the changes (`git add -A`, `git commit`,
+`git push origin main`). The existing service redeploys automatically; the steps below create a new one.
 
 1. Open <https://dashboard.render.com/> and sign in with GitHub. Never paste API keys or passwords into chats or files.
 2. Click **New → Blueprint**.
@@ -85,16 +86,16 @@ push the reviewed changes first (`git add -A`, `git commit`, `git push origin ma
    * Python **3.14.7** being used
    * `Successfully installed … onnxruntime-1.31.0 … faiss-cpu-1.15.1 …`
    * `[*] Embedding backend: onnx; image search: True`
-   * `[+] Xenova/all-MiniLM-L6-v2: 3 files, 87 MB …` and `[+] Xenova/clip-vit-base-patch32: 5 files, 183 MB …`
+   * `[+] Xenova/all-MiniLM-L6-v2: 3 files, 23 MB …` and `[+] Xenova/clip-vit-base-patch32: 5 files, 183 MB …`
    * a "Build successful" message
 8. Then the runtime log should show:
    ```text
-   Starting DriveDocs 0.2.0 (device=cpu, storage=ephemeral, image_search=True, provider=extractive)
+   Starting DriveDocs 0.3.0 (device=cpu, storage=ephemeral, image_search=True, provider=extractive)
    Uvicorn running on http://0.0.0.0:10000
-   Loaded model Xenova/all-MiniLM-L6-v2/onnx/model.onnx|onnx|text in …s
+   Loaded model Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx|onnx|text in …s
    Loaded model Xenova/clip-vit-base-patch32/onnx/text_model_q4.onnx+onnx/vision_model_q4.onnx|onnx|clip in …s
-   Ingested doc_… (pdf): 6 chunks, 1 images      (×4 sample files)
-   DriveDocs ready in … ms: 4 documents, 11 chunks, 2 images, storage=ephemeral
+   Ingested doc_… (pdf): 19 chunks, 4 images      (×5 sample files)
+   DriveDocs ready in … ms: 5 documents, 40 chunks, 5 images, storage=ephemeral
    ```
    and the status becomes **Live**. The URL is at the top of the service page: `https://drivedocs.onrender.com` if
    the name is free, otherwise Render adds a suffix such as `https://drivedocs-ab12.onrender.com`.
@@ -115,24 +116,26 @@ push the reviewed changes first (`git add -A`, `git commit`, `git push origin ma
 | Page takes ~1 minute to load | Normal on the Free plan after 15 idle minutes (the service is waking up) |
 | `No matching distribution found for …` | Keep `PYTHON_VERSION=3.14.7` (the pinned wheels were verified for it) |
 
-## 5. Verify the public website before publishing the link
+## 5. Verify the public website after each deploy
 
 From the repository folder (standard library only; waits up to 4 minutes for a sleeping service to wake):
 
 ```bash
-python scripts/smoke_test.py https://<your-service>.onrender.com
+python scripts/smoke_test.py https://drivedocs-3xr4.onrender.com
 ```
 
-All checks must pass (`22/22 checks passed`). Then check the UI by hand:
+All checks must pass (`30/30 checks passed`). Then check the UI by hand:
 
-1. Open `https://<your-service>.onrender.com/`. The status pill turns green ("Ready").
-2. Click "What is the optical transmission loss…": the answer contains **0.12 dB/cm** and a clickable
-   `quantum_photonics_spec.pdf · p.1` citation, and the badge says the citations are verified.
-3. Click the Mars example: "Insufficient evidence", no citations.
-4. **Visual search** → "line chart of detector efficiency versus wavelength" returns the chart from page 2.
-5. `https://<your-service>.onrender.com/docs` shows the API documentation.
-
-Only then replace the placeholder in the README's **Live Demo** section with the verified URL.
+1. Open <https://drivedocs-3xr4.onrender.com/>. The status pill turns green ("Ready · 40 chunks"); the status card
+   lists "Agent (LangChain): on" and "Guardrails: 3/3 on".
+2. Click "What is the recommended cold tire pressure…": the answer contains **35 psi** with a clickable
+   `aurora_s5_owner_manual.pdf · p.2` citation; the inspector shows the agent's tool calls.
+3. Click the compound brake-fluid example: two sub-questions in the trace, "3 years" and "DOT 4" in the answer.
+4. Click "Where is the coolant reservoir?": the engine-bay diagram is attached.
+5. Click the two guardrail examples: both are "Blocked by guardrails".
+6. **Library** → `service_record_ro58213.txt`: personal fields show `[REDACTED_…]`.
+7. **Evaluation**: Recall@5 and groundedness 100%, security table all "pass".
+8. `/ready` → `memory_rss_mb` stays well below 512.
 
 ## 6. Environment variables
 
@@ -140,13 +143,14 @@ All are set by `render.yaml`. **Nothing has to be entered manually** for the dem
 
 | Variable | Where | Notes |
 | --- | --- | --- |
-| `GEMINI_API_KEY` / `OPENAI_API_KEY` | Dashboard (secret, `sync: false`) | Only with `LLM_PROVIDER=gemini` / `openai`; leave empty otherwise |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` | Dashboard (secret, `sync: false`) | Only with `LLM_PROVIDER=gemini` / `openai`; leave empty otherwise. An LLM agent planner additionally needs `langchain-openai` / `langchain-google-genai` added to the build |
 | `HF_TOKEN` | Dashboard (secret), optional | Only if model downloads during the build hit Hub rate limits |
 | `DRIVEDOCS_CORS_ORIGINS` | Dashboard, optional | Only if another website must call the API from the browser |
 
 Defined in `render.yaml`: `PYTHON_VERSION=3.14.7`, `DEVICE=cpu`, `LLM_PROVIDER=extractive`,
 `HF_HOME=/opt/render/project/src/.hf-cache`, `HF_HUB_OFFLINE=1`, `HF_HUB_DISABLE_TELEMETRY=1`,
-`DRIVEDOCS_EMBEDDING_BACKEND=onnx`, `DRIVEDOCS_ENABLE_IMAGE_SEARCH=true`, `DRIVEDOCS_SEED_SAMPLE_DATA=true`,
+`DRIVEDOCS_EMBEDDING_BACKEND=onnx`, `DRIVEDOCS_ENABLE_IMAGE_SEARCH=true`, `DRIVEDOCS_AGENT_ENABLED=true`,
+`DRIVEDOCS_REDACT_PII=true`, `DRIVEDOCS_DETECT_PROMPT_INJECTION=true`, `DRIVEDOCS_SEED_SAMPLE_DATA=true`,
 `DRIVEDOCS_STORAGE_DIR=/opt/render/project/src/data/storage`, `DRIVEDOCS_PERSISTENT_STORAGE=false`,
 `DRIVEDOCS_MAX_UPLOAD_MB=10`, `DRIVEDOCS_MAX_DOCUMENTS=100`, `DRIVEDOCS_ONNX_THREADS=2`,
 `DRIVEDOCS_MAX_CONCURRENT_INFERENCE=1`, `OMP_NUM_THREADS=1`, `MALLOC_ARENA_MAX=2`, `TOKENIZERS_PARALLELISM=false`.
@@ -180,3 +184,6 @@ executed during development.
   rendered as HTML. Errors never include stack traces or paths. Logs never include document contents or keys.
 * Secrets are only read from environment variables; `render.yaml` declares them with `sync: false` and contains no
   values.
+* **Guardrails:** personal data is redacted at ingestion and in every response, questions asking for personal data
+  are refused, and instruction-like text in questions or documents is removed, never quoted and never sent to an LLM
+  (see the README's *Security guardrails* section and the security suite in `reports/EVALUATION.md`).

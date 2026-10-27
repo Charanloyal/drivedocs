@@ -118,11 +118,16 @@ def test_model_change_triggers_reembedding(make_service, tmp_path):
 def test_seeding_sample_data(make_service, tmp_path):
     service = make_service(root=tmp_path / "seed", seed=True)
     names = {d.filename for d in service.list_documents().documents}
-    assert {"quantum_photonics_spec.pdf", "agent_safety_protocol.md", "distributed_systems_notes.txt",
-            "architecture_diagram.png"} <= names
+    assert {"aurora_s5_owner_manual.pdf", "maintenance_schedule.md", "roadside_emergency_guide.txt",
+            "service_record_ro58213.txt", "engine_bay_diagram.png"} <= names
     assert all(d.source == "sample" for d in service.list_documents().documents)
     # Bundled samples are not copied into private uploads.
     assert not list(service.storage.uploads_dir.iterdir())
+    # The service record's personal data never reaches the index.
+    record = next(d for d in service.list_documents().documents if d.filename == "service_record_ro58213.txt")
+    assert any("redacted" in w for w in record.warnings)
+    text = " ".join(c.text for c in service.document_details(record.doc_id).chunks)
+    assert "jordan.avery@example.com" not in text and "1DDAS5E27RA104233" not in text and "[REDACTED_EMAIL]" in text
 
 
 @pytest.mark.real_models
@@ -131,11 +136,12 @@ def test_chat_end_to_end_with_page_citations(make_service, tmp_path, monkeypatch
 
     monkeypatch.setattr(settings, "embedding_backend", os.environ["DRIVEDOCS_TEST_REAL_BACKEND"])
     service = make_service(root=tmp_path / "chat", seed=True)
-    resp = service.chat(ChatRequest(query="What is the heartbeat interval of the Raft leader?", include_debug=True))
-    assert "150 milliseconds" in resp.answer
-    assert resp.citations and resp.citations[0].filename == "distributed_systems_notes.txt"
+    resp = service.chat(ChatRequest(query="What is the wheel nut tightening torque?", include_debug=True))
+    assert "80 lb-ft" in resp.answer
+    assert resp.citations and resp.citations[0].filename == "roadside_emergency_guide.txt"
     assert resp.citations[0].page_number == 1 and resp.citations[0].verified
     assert resp.latency_ms is not None and "fused_ranking" in resp.debug_info
+    assert resp.agent is not None and resp.agent.steps[0].tool == "search_manual_text"
 
 
 def test_health_is_cheap_and_ready_reports_components(make_service, tmp_path):

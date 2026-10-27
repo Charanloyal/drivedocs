@@ -55,3 +55,14 @@ def test_chunker_page_number_isolation():
     assert c2[0].page_number == 2
     assert "p1" in c1[0].chunk_id
     assert "p2" in c2[0].chunk_id
+
+
+def test_markdown_list_sections_are_chunked_per_item():
+    chunker = TextChunker(chunk_size=500, chunk_overlap=100)
+    md = ("# Schedule\n\n## Every 7,500 miles\n- Replace the engine oil and filter.\n- Rotate the tires.\n"
+          "  Include the spare.\n\n## Notes\nSevere conditions halve the interval.\n- Keep receipts.\n")
+    chunks = chunker.chunk_markdown(md, doc_id="doc_aaaaaaaaaaaa", filename="s.md")
+    oil, tires, notes = chunks
+    assert oil.text == "- Replace the engine oil and filter." and oil.section == "Schedule > Every 7,500 miles"
+    assert tires.text == "- Rotate the tires. Include the spare."
+    assert notes.section == "Schedule > Notes" and "Keep receipts" in notes.text  # mixed prose stays together

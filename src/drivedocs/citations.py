@@ -147,8 +147,8 @@ class CitationVerifier:
                 None,
             )
 
-        best = max(candidates, key=lambda r: lexical_support(claim, r.chunk.text))
-        support = round(lexical_support(claim, best.chunk.text), 3) if claim else None
+        best = max(candidates, key=lambda r: lexical_support(claim, r.chunk.embedding_text()))
+        support = round(lexical_support(claim, best.chunk.embedding_text()), 3) if claim else None
         snippet = best.chunk.text if len(best.chunk.text) <= 160 else best.chunk.text[:157] + "..."
         return None, Citation(
             filename=best.chunk.filename,

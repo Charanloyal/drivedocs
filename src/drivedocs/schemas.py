@@ -185,6 +185,41 @@ class CitationCheck(BaseModel):
     all_verified: bool = True
 
 
+class AgentStep(BaseModel):
+    """One tool call made by the LangChain agent."""
+
+    step: int
+    tool: str
+    tool_input: Dict[str, Any] = Field(default_factory=dict)
+    summary: str = Field("", description="What the tool returned, e.g. '4 passages, top score 0.71'")
+    results: int = 0
+    top_score: Optional[float] = None
+    latency_ms: float = 0.0
+
+
+class AgentTrace(BaseModel):
+    """How the agent answered: planner, sub-questions and tool calls."""
+
+    framework: str = "langchain"
+    planner: str = Field(..., description="'router' (offline, deterministic) or the LLM planner's model name")
+    sub_questions: List[str] = Field(default_factory=list)
+    steps: List[AgentStep] = Field(default_factory=list)
+    model_turns: int = 0
+    notes: List[str] = Field(default_factory=list)
+
+
+class SecurityReport(BaseModel):
+    """Guardrail outcome for one question."""
+
+    prompt_injection_detected: bool = False
+    injection_signals: List[str] = Field(default_factory=list)
+    removed_from_query: List[str] = Field(default_factory=list)
+    pii_request_blocked: bool = False
+    pii_redactions: Dict[str, int] = Field(default_factory=dict, description="Redactions applied to the response")
+    blocked: bool = False
+    reason: Optional[str] = None
+
+
 class ChatResponse(BaseModel):
     """Response payload for multimodal question answering."""
 
@@ -193,12 +228,14 @@ class ChatResponse(BaseModel):
     images: List[ImageReference] = Field(default_factory=list, description="Relevant visual evidence")
     evidence_count: int = Field(0, description="Number of text chunks retrieved")
     confidence: float = Field(0.0, description="Retrieval confidence (see MultimodalEvidence.top_confidence)")
-    answer_type: Literal["answer", "visual_only", "insufficient_evidence"] = "answer"
+    answer_type: Literal["answer", "visual_only", "insufficient_evidence", "blocked"] = "answer"
     provider: str = "extractive"
     warnings: List[str] = Field(default_factory=list)
     passages: List[PassageEvidence] = Field(default_factory=list)
     citation_check: CitationCheck = Field(default_factory=CitationCheck)
     latency_ms: Optional[float] = None
+    agent: Optional[AgentTrace] = Field(None, description="LangChain agent trace (mode='agent')")
+    security: Optional[SecurityReport] = Field(None, description="Guardrail report")
     debug_info: Optional[Dict[str, Any]] = None
 
 
@@ -233,6 +270,9 @@ class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000, description="User question")
     top_k_text: Optional[int] = Field(4, ge=1, le=10)
     top_k_images: Optional[int] = Field(2, ge=0, le=5)
+    mode: Literal["agent", "direct"] = Field(
+        "agent", description="'agent': LangChain tool-calling agent with guardrails; 'direct': single retrieval pass"
+    )
     include_debug: Optional[bool] = Field(False, description="Include similarity scores and timing debug info")
 
 
@@ -308,6 +348,8 @@ class SystemInfoResponse(BaseModel):
     text_model: str
     image_model: str
     thresholds: Dict[str, float]
+    agent: Dict[str, Any] = Field(default_factory=dict)
+    security: Dict[str, bool] = Field(default_factory=dict)
     authentication: bool = False
 
 

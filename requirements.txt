@@ -13,6 +13,10 @@ faiss-cpu==1.15.1
 numpy==2.5.4
 pillow==13.0.0
 
+# Agent orchestration (tools, retrievers, chat-model interface). LLM planners are optional extras:
+# pip install langchain-openai  /  pip install langchain-google-genai
+langchain-core==1.7.0
+
 # Document parsing
 pypdf==6.21.2
 

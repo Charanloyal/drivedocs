@@ -1,0 +1,19 @@
+AURORA MOTORS SERVICE CENTER - REPAIR ORDER RO-58213
+Date: 2024-09-14
+Customer: Jordan Avery
+Address: 4821 Willow Creek Road, Springfield, IL 62704
+Phone: (555) 013-4477
+Email: jordan.avery@example.com
+VIN: 1DDAS5E27RA104233
+Payment: Visa 4111 1111 1111 1111
+Odometer: 22,480 miles
+
+WORK PERFORMED
+1. Replaced the engine oil and oil filter with 4.8 quarts of SAE 0W-20 full synthetic oil.
+2. Rotated the tires and set all four tires to 35 psi cold; set the compact spare tire to 60 psi.
+3. Replaced the cabin air filter.
+4. Brake inspection: the front brake pads measured 7 mm and the rear brake pads 6 mm; no brake service was required.
+5. Battery test: 12.6 volts and 640 cold cranking amps measured; the battery is in good condition.
+
+TECHNICIAN NOTES
+The next scheduled service is due at 30,000 miles or in 12 months, whichever comes first. The engine air filter should be replaced at the 30,000-mile service.
