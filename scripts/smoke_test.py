@@ -109,29 +109,38 @@ def main() -> int:
 
     status, docs = get_json("/documents")
     names = {d["filename"]: d for d in docs.get("documents", [])} if status == 200 else {}
-    check("GET /documents lists the sample corpus", status == 200 and "quantum_photonics_spec.pdf" in names,
+    check("GET /documents lists the sample corpus", status == 200 and "aurora_owners_manual.pdf" in names,
           f"{docs.get('total_documents')} documents, {docs.get('total_chunks')} chunks, {docs.get('total_images')} images")
 
-    status, hits = post_json("/search/text", {"query": "silicon nitride waveguide transmission loss", "top_k": 3})
+    status, hits = post_json("/search/text", {"query": "rear window defroster fuse", "top_k": 3})
     check("POST /search/text finds the right page", status == 200 and hits
-          and hits[0]["chunk"]["filename"] == "quantum_photonics_spec.pdf" and hits[0]["chunk"]["page_number"] == 1,
+          and hits[0]["chunk"]["filename"] == "aurora_owners_manual.pdf" and hits[0]["chunk"]["page_number"] == 5,
           f"top={hits[0]['chunk']['filename']} p{hits[0]['chunk']['page_number']} score={hits[0]['score']:.2f}" if status == 200 and hits else str(hits)[:120])
 
-    status, chat = post_json("/chat", {"query": "What is the optical transmission loss of the silicon nitride waveguide bus?"})
+    status, chat = post_json("/chat", {"query": "What is the recommended cold tire pressure for the rear tires?"})
     citations = chat.get("citations", []) if status == 200 else []
-    check("POST /chat answers a sample question", status == 200 and "0.12 dB/cm" in chat.get("answer", ""),
+    check("POST /chat answers a sample question", status == 200 and "2.7 bar" in chat.get("answer", ""),
           f"{chat.get('answer', '')[:90]}..." if status == 200 else str(chat)[:120])
     real = all(c["filename"] in names and 1 <= (c.get("page_number") or 0) <= names[c["filename"]]["page_count"] for c in citations)
     check("Citations point to real documents and pages", bool(citations) and real and chat["citation_check"]["all_verified"],
           ", ".join(f"{c['filename']} p{c['page_number']}" for c in citations))
+    agent_steps = len(chat.get("agent_trace") or []) if status == 200 else 0
+    check("Answer provider reported", status == 200 and bool(chat.get("provider")),
+          f"provider={chat.get('provider')}, agent steps={agent_steps}, LLM configured={info.get('llm_configured')}")
+
+    status, pii = post_json("/chat", {"query": "What is the customer's email and phone number on the service record?"})
+    raw = json.dumps(pii)
+    check("PII is masked in answers and passages", status == 200 and "jane.example@example.com" not in raw
+          and "010-2345" not in raw and pii.get("pii_redactions", 0) > 0, f"masked={pii.get('pii_redactions')}")
 
     status, neg = post_json("/chat", {"query": "Who won the 2018 FIFA World Cup final?"})
     check("Negative question is refused without citations", status == 200 and neg.get("answer_type") == "insufficient_evidence"
           and not neg.get("citations"), neg.get("answer", "")[:90] if status == 200 else str(neg)[:120])
 
     if info.get("image_search_enabled"):
-        status, imgs = post_form("/search/images", {"query": "line chart of detector efficiency versus wavelength", "top_k": "2"}, {})
-        check("POST /search/images (text -> image)", status == 200 and imgs and imgs[0]["image"]["filename"] == "quantum_photonics_spec.pdf",
+        status, imgs = post_form("/search/images", {"query": "fuse box layout diagram", "top_k": "2"}, {})
+        check("POST /search/images (text -> image)", status == 200 and imgs and imgs[0]["image"]["filename"] == "aurora_owners_manual.pdf"
+              and imgs[0]["image"]["page_number"] == 5,
               f"top={imgs[0]['image']['filename']} p{imgs[0]['image']['page_number']} score={imgs[0]['score']:.2f}" if status == 200 and imgs else str(imgs)[:120])
         if status == 200 and imgs:
             s, h, png = request("GET", imgs[0]["image"]["url_path"])
@@ -139,9 +148,9 @@ def main() -> int:
             status, sim = post_form("/search/images", {"top_k": "1"}, {"image_file": ("query.png", png, "image/png")})
             check("POST /search/images (image -> image)", status == 200 and sim and sim[0]["score"] > 0.95,
                   f"score={sim[0]['score']:.3f}" if status == 200 and sim else str(sim)[:120])
-        status, vis = post_json("/chat", {"query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA."})
+        status, vis = post_json("/chat", {"query": "Show the front compartment diagram with the 12V battery and coolant"})
         check("Chat returns visual evidence for a diagram request", status == 200 and any(
-            i["filename"] == "architecture_diagram.png" for i in vis.get("images", [])), vis.get("answer_type", ""))
+            i["filename"] == "front_compartment_diagram.png" for i in vis.get("images", [])), vis.get("answer_type", ""))
     else:
         check("Image search disabled on this deployment (skipped)", True)
 

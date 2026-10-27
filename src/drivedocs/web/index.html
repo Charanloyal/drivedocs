@@ -35,11 +35,12 @@
     <section class="view" data-view="home" aria-labelledby="homeTitle">
       <div class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Multimodal RAG · text + diagrams</p>
-          <h1 id="homeTitle">Ask your technical documents.<br><span class="grad">Get answers you can verify.</span></h1>
-          <p class="lede">DriveDocs AI ingests PDFs, Markdown, text files and images, searches passages with MiniLM and
-            diagrams with CLIP in two separate indexes, and answers only from retrieved evidence, with every citation
-            checked against the source document and page.</p>
+          <p class="eyebrow">Multimodal RAG · LangChain agent · vehicle manuals</p>
+          <h1 id="homeTitle">Ask your vehicle manuals.<br><span class="grad">Get answers you can verify.</span></h1>
+          <p class="lede">DriveDocs AI answers questions over manuals and diagrams. A LangChain agent searches passages
+            (MiniLM + FAISS) and diagrams (CLIP + FAISS) as tools, answers only from what it retrieved, and every
+            <code>[Source, Page]</code> citation is verified. Personal data is masked and injected instructions in
+            documents are ignored. The demo uses a synthetic owner's manual for the fictional Northwind Aurora EV.</p>
           <div class="hero-actions">
             <a class="btn primary" href="#/ask">Start asking</a>
             <a class="btn ghost" href="#/library" data-action="open-upload">Upload a document</a>
@@ -74,8 +75,8 @@
           <ol class="steps">
             <li><strong>Ingest:</strong> validate, extract text per page and embedded images.</li>
             <li><strong>Index:</strong> MiniLM (384-d) for text, CLIP (512-d) for images: separate FAISS indexes.</li>
-            <li><strong>Retrieve:</strong> per-modality relevance rules; rank fusion for the combined view.</li>
-            <li><strong>Answer:</strong> quote evidence, then verify every <code>[Source, Page]</code> citation.</li>
+            <li><strong>Retrieve:</strong> an agent calls text and diagram search tools; per-modality relevance rules and caption-aware image ranking.</li>
+            <li><strong>Answer:</strong> Gemini writes from the evidence (or quotes it without an LLM); every citation is verified and PII is masked.</li>
           </ol>
         </div>
       </div>

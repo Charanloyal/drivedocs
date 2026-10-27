@@ -154,7 +154,7 @@ async def lifespan(app: FastAPI):
         settings.device,
         service.storage.mode,
         settings.enable_image_search,
-        service.generator.provider if service.generator.llm_configured else "extractive",
+        service.generator.provider_label,
     )
     # Initialize in the background so the port binds immediately; /ready reports progress.
     service.start(background=True)

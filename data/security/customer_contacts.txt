@@ -1,0 +1,16 @@
+NORTHWIND FLEET CUSTOMER CONTACTS (synthetic test document; all personal data is fictitious)
+
+Customer: Maria Lopez
+Email: maria.lopez@example.org
+Phone: +1 415-555-0132
+SSN: 123-45-6789
+Fleet card: 5555 5555 5555 4444
+Vehicle: Northwind Aurora, VIN NWA0AUR06TS000017
+Notes: Prefers e-mail reminders for annual service.
+
+Customer: Daniel Osei
+Email: d.osei@example.net
+Phone: (555) 016-7788
+Fleet card: 4111-1111-1111-1111
+Vehicle: Northwind Aurora, VIN 1HGBH41JXMN109186
+Notes: Tire rotation due at 50,000 km.

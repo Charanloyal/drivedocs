@@ -18,7 +18,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from drivedocs.citations import CitationVerifier
+from drivedocs.agent import DriveDocsAgent
+from drivedocs.citations import CitationVerifier, content_tokens
 from drivedocs.config import Settings, settings as default_settings
 from drivedocs.generation import GroundedMultimodalGenerator
 from drivedocs.image_index import CLIPEmbeddingModel, ImageFAISSIndex
@@ -44,9 +45,11 @@ from drivedocs.schemas import (
     PublicImageSearchResult,
     ReadinessResponse,
     SystemInfoResponse,
+    TextChunk,
     TextSearchResult,
     UploadResponse,
 )
+from drivedocs.security import redact_text
 from drivedocs.storage import LocalStorage, atomic_write_json
 from drivedocs.text_index import TextEmbeddingModel, TextFAISSIndex
 
@@ -101,7 +104,12 @@ class DriveDocsService:
             images_dir=self.storage.images_dir,
         )
         self.verifier = CitationVerifier(lookup_document=self.ingestion.find_by_filename)
-        self.generator = GroundedMultimodalGenerator(verifier=self.verifier)
+        self.agent = DriveDocsAgent(self.retriever, image_search_enabled=lambda: self.image_index.enabled)
+        self.generator = GroundedMultimodalGenerator(
+            verifier=self.verifier, agent=self.agent, vocabulary=self.corpus_vocabulary
+        )
+        self._vocab_key: Optional[int] = None
+        self._vocab: set = set()
 
         self._write_lock = threading.RLock()
         self._ready = threading.Event()
@@ -387,7 +395,7 @@ class DriveDocsService:
             raise NotFoundError(f"Document '{doc_id}' was not found.")
         return DocumentDetailResponse(
             document=meta,
-            chunks=self.ingestion.get_chunks(doc_id),
+            chunks=[self._redacted_chunk(c) for c in self.ingestion.get_chunks(doc_id)],
             images=[PublicImage.from_item(i) for i in self.ingestion.get_images(doc_id)],
         )
 
@@ -397,23 +405,40 @@ class DriveDocsService:
             return None
         return self.storage.image_file(image_name)
 
+    def corpus_vocabulary(self) -> set:
+        """Content words of every indexed chunk (cached until the index changes)."""
+        key = id(self.text_index.chunks) ^ self.text_index.count()
+        if key != self._vocab_key:
+            vocab: set = set()
+            for chunk in self.text_index.chunks:
+                vocab.update(content_tokens(f"{chunk.section or ''} {chunk.text}"))
+            self._vocab, self._vocab_key = vocab, key
+        return self._vocab
+
+    def _redacted_chunk(self, chunk: TextChunk) -> TextChunk:
+        if not self.config.pii_redaction:
+            return chunk
+        return chunk.model_copy(update={"text": redact_text(chunk.text)})
+
     def search_text(self, query: str, top_k: int) -> List[TextSearchResult]:
         results = self.retriever.dedupe_text(self.text_index.search(query, top_k=top_k + 2))[:top_k]
-        for r in results:
-            r.accepted = r.score >= self.retriever.text_threshold
-        return results
+        return [
+            r.model_copy(update={"chunk": self._redacted_chunk(r.chunk), "accepted": r.score >= self.retriever.text_threshold})
+            for r in results
+        ]
 
     def search_images_by_text(self, query: str, top_k: int) -> List[PublicImageSearchResult]:
         if not self.image_index.enabled:
             return []
-        results = self.image_index.search_by_text(query, top_k=top_k)
+        results = self.retriever.search_images(query, top_k=top_k)
         out = []
         for r in results:
-            # The user explicitly asked for images, so the visual-query rule applies.
+            # The user explicitly asked for images, so the visual-query rules apply.
             reason = self.retriever.accept_image(r, visual_intent=True, text_pages=set())
             out.append(
                 PublicImageSearchResult(
-                    image=PublicImage.from_item(r.image), score=round(r.score, 4), rank=r.rank, match_reason=reason
+                    image=PublicImage.from_item(r.image), score=round(r.score, 4), rank=r.rank,
+                    caption_score=r.caption_score, match_reason=reason,
                 )
             )
         return out
@@ -529,7 +554,7 @@ class DriveDocsService:
             app_name=self.config.app_name,
             version=self.config.app_version,
             device=self.config.device,
-            llm_provider=self.generator.provider if self.generator.llm_configured else "extractive",
+            llm_provider=self.generator.provider_label,
             llm_configured=self.generator.llm_configured,
             storage_mode="persistent" if persistent else "ephemeral",
             storage_notice=notice,

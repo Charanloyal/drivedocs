@@ -1,150 +1,50 @@
 [
-  {
-    "id": "q1_waveguide_loss",
-    "query": "What is the optical transmission loss of the silicon nitride waveguide bus?",
-    "modality": "text",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [1],
-    "expected_facts": ["0.12 dB/cm"],
-    "notes": "PDF text extraction on page 1."
-  },
-  {
-    "id": "q2_detector_efficiency",
-    "query": "What is the peak quantum efficiency of the SNSPD single-photon detector and at what wavelength?",
-    "modality": "text",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [2],
-    "expected_facts": ["98.4%", "1550 nm"],
-    "notes": "Page attribution on page 2."
-  },
-  {
-    "id": "q3_agent_rate_limit",
-    "query": "What is the maximum API throughput rate limit for agent workers?",
-    "modality": "text",
-    "relevant_filenames": ["agent_safety_protocol.md"],
-    "relevant_pages": [1],
-    "expected_facts": ["120 calls per minute"],
-    "notes": "Markdown section retrieval."
-  },
-  {
-    "id": "q4_raft_heartbeat",
-    "query": "What is the periodic heartbeat interval dispatched by the Raft leader?",
-    "modality": "text",
-    "relevant_filenames": ["distributed_systems_notes.txt"],
-    "relevant_pages": [1],
-    "expected_facts": ["150 milliseconds"],
-    "notes": "Plain-text retrieval."
-  },
-  {
-    "id": "q5_visual_architecture",
-    "query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.",
-    "modality": "image",
-    "relevant_filenames": ["architecture_diagram.png"],
-    "relevant_pages": [1],
-    "notes": "CLIP text-to-image retrieval of a standalone diagram."
-  },
-  {
-    "id": "q6_visual_efficiency_curve",
-    "query": "Show the calibrated quantum efficiency curve versus wavelength chart.",
-    "modality": "image",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [2],
-    "notes": "CLIP retrieval of an image extracted from page 2 of a PDF."
-  },
-  {
-    "id": "q7_unsupported_apple_stock",
-    "query": "What was the stock price of Apple Computer Inc on January 15, 1999?",
-    "is_unsupported": true,
-    "notes": "Out-of-corpus question."
-  },
-  {
-    "id": "q8_unsupported_baking_recipe",
-    "query": "What is the traditional culinary recipe and oven temperature for baking chocolate chip cookies?",
-    "is_unsupported": true,
-    "notes": "Out-of-corpus question."
-  },
-  {
-    "id": "q9_raft_election_timeout",
-    "query": "What range is the randomized election timeout configured to?",
-    "modality": "text",
-    "relevant_filenames": ["distributed_systems_notes.txt"],
-    "relevant_pages": [1],
-    "expected_facts": ["300 milliseconds", "600 milliseconds"]
-  },
-  {
-    "id": "q10_quorum_size",
-    "query": "How many nodes constitute a quorum in a 5-node cluster?",
-    "modality": "text",
-    "relevant_filenames": ["distributed_systems_notes.txt"],
-    "relevant_pages": [1],
-    "expected_facts": ["3 nodes"]
-  },
-  {
-    "id": "q11_human_approval",
-    "query": "Above what financial amount does an action require human supervisor approval?",
-    "modality": "text",
-    "relevant_filenames": ["agent_safety_protocol.md"],
-    "relevant_pages": [1],
-    "expected_facts": ["$500"]
-  },
-  {
-    "id": "q12_phase_shifter",
-    "query": "What is the switching rise time of the thermo-optic phase shifters?",
-    "modality": "text",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [1],
-    "expected_facts": ["1.4 microseconds"]
-  },
-  {
-    "id": "q13_cryostat_temperature",
-    "query": "What base temperature does the pulse-tube cryostat maintain?",
-    "modality": "text",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [2],
-    "expected_facts": ["0.85 Kelvin"]
-  },
-  {
-    "id": "q14_edge_coupler_loss",
-    "query": "What is the insertion loss per facet of the edge couplers?",
-    "modality": "text",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [1],
-    "expected_facts": ["0.8 dB"]
-  },
-  {
-    "id": "q15_audit_ledger",
-    "query": "How are audit trail records protected against tampering?",
-    "modality": "text",
-    "relevant_filenames": ["agent_safety_protocol.md"],
-    "relevant_pages": [1],
-    "expected_facts": ["SHA-256"]
-  },
-  {
-    "id": "q16_unsupported_world_cup",
-    "query": "Who won the 2018 FIFA World Cup final?",
-    "is_unsupported": true,
-    "notes": "Out-of-corpus question."
-  },
-  {
-    "id": "q17_hard_negative_paxos",
-    "query": "How does Paxos handle leader election?",
-    "is_unsupported": true,
-    "hard_negative": true,
-    "notes": "Near-domain: the corpus describes Raft leader election, not Paxos."
-  },
-  {
-    "id": "q18_hard_negative_lithium_niobate",
-    "query": "What is the insertion loss of the lithium niobate modulator?",
-    "is_unsupported": true,
-    "hard_negative": true,
-    "notes": "Near-domain: the corpus covers silicon nitride photonics, not lithium niobate."
-  },
-  {
-    "id": "q19_visual_detector_chart",
-    "query": "line chart of detector efficiency versus wavelength",
-    "modality": "image",
-    "relevant_filenames": ["quantum_photonics_spec.pdf"],
-    "relevant_pages": [2],
-    "notes": "Keyword-style visual query."
-  }
+  {"id": "t01_rear_tire_pressure", "query": "What is the recommended cold tire pressure for the rear tires?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [3], "expected_facts": ["2.7 bar"]},
+  {"id": "t02_defroster_fuse", "query": "Which fuse protects the rear window defroster?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [5], "expected_facts": ["F12"]},
+  {"id": "t03_fuse_box_location", "query": "Where is the interior fuse box located?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [5], "expected_facts": ["footwell"]},
+  {"id": "t04_dc_fast_charge_time", "query": "How long does DC fast charging from 10% to 80% take?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [4], "expected_facts": ["28 minutes"]},
+  {"id": "t05_red_status_light", "query": "What does a red light at the charging inlet mean?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [4], "expected_facts": ["charging fault"]},
+  {"id": "t06_vin_location", "query": "Where can I find the vehicle identification number?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [1], "expected_facts": ["windshield"]},
+  {"id": "t07_red_brake_light", "query": "What should I do if the red brake system warning light stays on?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [2], "expected_facts": ["brake fluid"]},
+  {"id": "t08_cabin_filter", "query": "How often should the cabin air filter be replaced?", "modality": "text",
+   "relevant_filenames": ["maintenance_schedule.md"], "relevant_pages": [1], "expected_facts": ["20,000 km"]},
+  {"id": "t09_tpms_reset", "query": "How do I reset the tire pressure monitoring system after rotating the tires?", "modality": "text",
+   "relevant_filenames": ["troubleshooting_guide.txt"], "relevant_pages": [1], "expected_facts": ["3 seconds"]},
+  {"id": "t10_battery_warranty", "query": "How long is the high-voltage battery warranty?", "modality": "text",
+   "relevant_filenames": ["maintenance_schedule.md"], "relevant_pages": [1], "expected_facts": ["8 years"]},
+  {"id": "t11_wont_power_on", "query": "The car will not power on and the touchscreen is dark. What should I do?", "modality": "text",
+   "relevant_filenames": ["troubleshooting_guide.txt", "aurora_owners_manual.pdf"], "relevant_pages": [1, 6], "expected_facts": ["12V battery"]},
+  {"id": "t12_flat_tow", "query": "How far and how fast can the Aurora be towed with its wheels on the ground?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [6], "expected_facts": ["10 km", "40 km/h"]},
+  {"id": "t13_lug_nut_torque", "query": "What torque should the wheel lug nuts be tightened to?", "modality": "text",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [3], "expected_facts": ["140 N"]},
+  {"id": "t14_service_work", "query": "What work was performed at the March 2026 service visit?", "modality": "text",
+   "relevant_filenames": ["service_record_2026-03.txt"], "relevant_pages": [1], "expected_facts": ["Brake fluid replaced"]},
+  {"id": "v01_warning_lights", "query": "Show me the dashboard warning lights chart", "modality": "image",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [2]},
+  {"id": "v02_tire_placard", "query": "Show the tire pressure placard diagram", "modality": "image",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [3]},
+  {"id": "v03_charging_port", "query": "Show the diagram of the charging port", "modality": "image",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [4]},
+  {"id": "v04_fuse_box", "query": "fuse box layout diagram", "modality": "image",
+   "relevant_filenames": ["aurora_owners_manual.pdf"], "relevant_pages": [5]},
+  {"id": "v05_front_compartment", "query": "Show the front compartment diagram with the 12V battery and coolant", "modality": "image",
+   "relevant_filenames": ["front_compartment_diagram.png"], "relevant_pages": [1]},
+  {"id": "n01_stock_price", "query": "What was the stock price of Apple Computer on January 15, 1999?", "is_unsupported": true},
+  {"id": "n02_cookies", "query": "What is the oven temperature for baking chocolate chip cookies?", "is_unsupported": true},
+  {"id": "n03_world_cup", "query": "Who won the 2018 FIFA World Cup final?", "is_unsupported": true},
+  {"id": "n04_mars", "query": "What is the capital city of Mars?", "is_unsupported": true},
+  {"id": "h01_engine_oil", "query": "How often should I change the engine oil?", "is_unsupported": true, "hard_negative": true,
+   "notes": "Near-domain: the Aurora is electric and the manual has no engine oil."},
+  {"id": "h02_android_auto", "query": "How do I connect my phone with Android Auto?", "is_unsupported": true, "hard_negative": true,
+   "notes": "Near-domain: phone projection is not covered by the manual."},
+  {"id": "h03_spark_plugs", "query": "When should the spark plugs be replaced?", "is_unsupported": true, "hard_negative": true,
+   "notes": "Near-domain: an electric vehicle has no spark plugs."}
 ]

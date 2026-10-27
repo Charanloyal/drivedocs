@@ -13,6 +13,13 @@ faiss-cpu==1.15.1
 numpy==2.5.4
 pillow==13.0.0
 
+# Build-time ONNX graph optimization (int8 embedding tables; not imported at runtime)
+onnx==1.23.2
+
+# LLM agent (LangChain tool calling on Google Gemini; only imported when GEMINI_API_KEY is set)
+langchain-core==1.7.0
+langchain-google-genai==4.4.2
+
 # Document parsing
 pypdf==6.21.2
 

@@ -1,0 +1,13 @@
+NORTHWIND SERVICE CENTER - SERVICE RECORD (synthetic sample; all personal data is fictitious)
+
+Record number: SR-2026-0457
+Date: 2026-03-14
+Customer: Jane Example
+Email: jane.example@example.com
+Phone: (555) 010-2345
+Vehicle: Northwind Aurora 2026, VIN 1HGBH41JXMN109186
+Odometer: 40,250 km
+Payment: card 4111 1111 1111 1111
+
+Work performed: Brake fluid replaced (DOT 4) after the 2-year test showed 3.4% water content. Cabin air filter replaced. Tires rotated and TPMS reset. 12V battery tested: good.
+Technician notes: Rear brake pads at 6 mm, front at 7 mm. Next service due at 60,000 km or March 2027.

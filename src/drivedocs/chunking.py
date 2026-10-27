@@ -240,4 +240,36 @@ def split_markdown_sections(text: str) -> List[Tuple[Optional[str], str]]:
         else:
             body.append(line)
     flush()
-    return sections
+    return [(path, tables_to_sentences(content)) for path, content in sections]
+
+
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_RULE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
+
+
+def tables_to_sentences(text: str) -> str:
+    """Rewrite Markdown pipe tables as one sentence per row so rows can be retrieved and quoted.
+
+    | Item | Interval |            Cabin air filter: Replace every 12 months or 20,000 km.
+    | Cabin air filter | ... |  ->  (with more than two columns: "Name: Header2 value2; Header3 value3.")
+    """
+    lines = text.split("\n")
+    out: List[str] = []
+    i = 0
+    while i < len(lines):
+        if _TABLE_ROW.match(lines[i]) and i + 1 < len(lines) and _TABLE_RULE.match(lines[i + 1]):
+            header = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+            i += 2
+            while i < len(lines) and _TABLE_ROW.match(lines[i]):
+                cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+                if len(cells) == 2:
+                    sentence = f"{cells[0]}: {cells[1]}"
+                else:
+                    rest = "; ".join(f"{h} {v}" for h, v in zip(header[1:], cells[1:]) if v)
+                    sentence = f"{cells[0]}: {rest}"
+                out.append(sentence if sentence.endswith((".", "!", "?")) else sentence + ".")
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    return "\n".join(out)

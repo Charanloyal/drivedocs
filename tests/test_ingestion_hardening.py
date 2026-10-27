@@ -19,6 +19,7 @@ from drivedocs.ingestion import (
     sanitize_filename,
 )
 
+LEGACY_DIR = Path(__file__).resolve().parent / "fixtures" / "legacy_corpus"
 SAMPLE_DIR = Path(__file__).resolve().parent.parent / "data" / "sample"
 
 
@@ -96,7 +97,7 @@ def test_whitespace_only_text_is_rejected(mgr):
 
 
 def test_corrupted_pdf_is_rejected(mgr):
-    good = (SAMPLE_DIR / "quantum_photonics_spec.pdf").read_bytes()
+    good = (LEGACY_DIR / "quantum_photonics_spec.pdf").read_bytes()
     corrupted = good[:200] + b"\x00garbage" * 50
     with pytest.raises(MalformedDocumentError):
         mgr.ingest_bytes("broken.pdf", corrupted)
@@ -133,7 +134,7 @@ def test_pdf_page_limit(mgr):
 
 def test_sample_pdf_extraction():
     m = DocumentIngestionManager(images_dir=Path(__import__("tempfile").mkdtemp()))
-    parsed = m.ingest_file(SAMPLE_DIR / "quantum_photonics_spec.pdf")
+    parsed = m.ingest_file(LEGACY_DIR / "quantum_photonics_spec.pdf")
     assert parsed.metadata.page_count == 2
     assert {c.page_number for c in parsed.chunks} == {1, 2}
     assert any("0.12 dB/cm" in c.text and c.page_number == 1 for c in parsed.chunks)
@@ -204,3 +205,23 @@ def test_registry_detects_inconsistency(mgr):
     other = DocumentIngestionManager(images_dir=mgr.images_dir)
     problems = other.load_registry_payload(mgr.registry_payload(), [], [])
     assert problems and ok.metadata.doc_id in problems[0]
+
+
+def test_vehicle_manual_extraction_and_captions():
+    m = DocumentIngestionManager(images_dir=Path(__import__("tempfile").mkdtemp()))
+    parsed = m.ingest_file(SAMPLE_DIR / "aurora_owners_manual.pdf")
+    assert parsed.metadata.page_count == 6
+    assert any("2.7 bar" in c.text and c.page_number == 3 for c in parsed.chunks)
+    assert any("F12" in c.text and c.page_number == 5 for c in parsed.chunks)
+    pages = {img.page_number: img.caption for img in parsed.images}
+    assert set(pages) == {2, 3, 4, 5}
+    assert pages[5].startswith("Figure 5.1") and "fuse box" in pages[5].lower()
+    standalone = m.ingest_file(SAMPLE_DIR / "front_compartment_diagram.png")
+    assert standalone.images[0].caption == "front compartment diagram"
+
+
+def test_markdown_tables_become_sentences(mgr):
+    md = b"# Schedule\n\n| Item | Interval |\n| --- | --- |\n| Cabin air filter | Every 20,000 km |\n| Wipers | 12 months |\n"
+    parsed = mgr.ingest_bytes("schedule.md", md)
+    text = parsed.chunks[0].text
+    assert "Cabin air filter: Every 20,000 km." in text and "Wipers: 12 months." in text and "|" not in text

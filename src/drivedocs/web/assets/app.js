@@ -5,17 +5,18 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const CITATION_RE = /\[Source:\s*([^,\]\n]+?)\s*,\s*Page\s*(\d+|N\/A)\s*\]|\[unverified citation removed\]/g;
 const HISTORY_KEY = "drivedocs.history.v1";
 const EXAMPLES = [
-  { tag: "PDF · page 1", q: "What is the optical transmission loss of the silicon nitride waveguide bus?" },
-  { tag: "PDF · page 2 + chart", q: "What is the peak quantum efficiency of the SNSPD single-photon detector?" },
-  { tag: "Diagram", q: "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA." },
-  { tag: "Text file", q: "What is the periodic heartbeat interval dispatched by the Raft leader?" },
-  { tag: "Markdown", q: "Above what financial amount does an action require human supervisor approval?" },
-  { tag: "Out of scope", q: "What is the capital city of Mars in the year 3000?" },
+  { tag: "Manual · page 3 + placard", q: "What is the recommended cold tire pressure for the rear tires?" },
+  { tag: "Manual · page 5 + fuse diagram", q: "Which fuse protects the rear window defroster?" },
+  { tag: "Diagram search", q: "Show the fuse box layout diagram" },
+  { tag: "Troubleshooting guide", q: "The car will not power on and the touchscreen is dark. What should I do?" },
+  { tag: "PII redaction", q: "What is the customer's email and phone number on the service record?" },
+  { tag: "Not in the manual", q: "When should the spark plugs be replaced?" },
 ];
 const REASONS = {
   strong_clip_match: "Strong visual similarity (CLIP ≥ image threshold)",
   visual_query_match: "You asked for a visual and the similarity passed the visual-query threshold",
   same_page_as_text_evidence: "On the same page as a cited passage",
+  caption_match: "Its caption matches your request",
   image_similarity: "Visual similarity to your image",
 };
 
@@ -276,11 +277,19 @@ function renderBotAnswer(query, data) {
     check.total ? badge(`${check.verified}/${check.total} citations verified`, check.all_verified ? "ok" : "warn") : null,
     h("span", { title: "Similarity of the best text passage (MiniLM cosine). The answer gate is shown in the inspector." }, `top passage ${fmtScore(data.debug_info ? data.debug_info.top_text_score : data.confidence)}`),
     data.latency_ms ? h("span", { text: `${Math.round(data.latency_ms)} ms` }) : null,
-    h("span", { text: data.provider === "extractive" ? "extractive (no LLM)" : data.provider }),
+    h("span", { title: data.provider === "extractive" ? "Answer quoted from the retrieved passages; no LLM involved" : "Answer written by the LangChain tool-calling agent and verified against the retrieved passages" },
+      data.provider === "extractive" ? "extractive (no LLM)" : data.provider),
+    data.pii_redactions ? badge(`${data.pii_redactions} PII value${data.pii_redactions > 1 ? "s" : ""} masked`, "accent") : null,
     h("button", { class: "link-btn", type: "button", on: { click: () => renderInspector(data) } }, "Inspect evidence"));
   const parts = [renderAnswerText(data.answer, data.citations), meta];
+  if (data.agent_trace && data.agent_trace.length) {
+    parts.push(h("div", { class: "agent-trace", "aria-label": "Agent steps" },
+      h("span", { class: "muted small", text: "Agent steps:" }),
+      data.agent_trace.map((s, i) => h("span", { class: "step", title: `${s.results} result(s) in ${Math.round(s.duration_ms)} ms` },
+        `${i + 1}. ${s.tool === "search_diagrams" ? "🖼" : "🔎"} ${s.tool}("${s.query}") → ${s.results}`))));
+  }
   if (data.warnings && data.warnings.length) parts.push(h("ul", { class: "warnings" }, data.warnings.map((w) => h("li", { text: w }))));
-  if (data.images && data.images.length) parts.push(h("div", { class: "thumbs" }, data.images.map((img) => imageCard(img.image_url, img.filename, img.page_number, img.score, img.match_reason, img.doc_id))));
+  if (data.images && data.images.length) parts.push(h("div", { class: "thumbs" }, data.images.map((img) => imageCard(img.image_url, img.filename, img.page_number, img.score, img.match_reason, img.doc_id, img.description))));
   addMessage("bot", ...parts);
   renderInspector(data);
 }
@@ -320,12 +329,13 @@ function focusPassage(filename, page) {
 
 /* ---------------------------------------------------------------- images */
 
-function imageCard(url, filename, page, score, reason, docId) {
+function imageCard(url, filename, page, score, reason, docId, caption) {
   return h("div", { class: "img-card" },
     h("button", { class: "img-btn", type: "button", title: "Enlarge", on: { click: () => openLightbox(url, `${filename}${page ? ` · page ${page}` : ""}`) } },
       h("img", { src: url, alt: `Image from ${filename}${page ? `, page ${page}` : ""}`, loading: "lazy" })),
     h("div", { class: "img-meta" },
-      h("span", { class: "name", title: filename, text: filename }),
+      h("span", { class: "name", title: caption || filename, text: filename }),
+      caption ? h("span", { class: "caption muted small", text: caption }) : null,
       h("span", { class: "muted" }, page ? `Page ${page}` : "Standalone image"),
       typeof score === "number" ? scoreBar(score) : null,
       typeof score === "number" ? h("span", { class: "muted small", text: reason ? (REASONS[reason] || reason) : "Below the relevance thresholds" }) : null,
@@ -474,7 +484,7 @@ async function visualSearch(form, label) {
     const results = await api.post("/search/images", form);
     clear(box);
     if (!results.length) { box.append(h("p", { class: "muted", text: "No images are indexed yet. Upload a PNG/JPEG or a PDF with figures." })); return; }
-    for (const r of results) box.append(imageCard(r.image.url_path, r.image.filename, r.image.page_number, r.score, r.match_reason, r.image.doc_id));
+    for (const r of results) box.append(imageCard(r.image.url_path, r.image.filename, r.image.page_number, r.score, r.match_reason, r.image.doc_id, r.image.caption));
   } catch (err) {
     clear(box).append(h("p", { class: "muted", text: err.message }));
   }
@@ -483,10 +493,11 @@ async function visualSearch(form, label) {
 /* ---------------------------------------------------------------- evaluation */
 
 const METRICS = [
-  ["text_recall_at_k", "Text Recall@K", "Relevant file+page in the top-K passages", "pct"],
+  ["text_recall_at_k", "Text Recall@5", "Relevant file+page in the top-5 passages", "pct"],
+  ["groundedness", "Groundedness", "Answer claims supported by their cited passage", "pct"],
   ["text_mrr", "Text MRR", "Mean reciprocal rank of the first relevant passage", "num"],
   ["text_precision_at_k", "Text Precision@K", "Share of top-K passages that are relevant", "pct"],
-  ["image_recall_at_k", "Image Recall@K", "Relevant image in the top-K CLIP results", "pct"],
+  ["image_recall_at_k", "Image Recall@3", "Relevant diagram in the top-3 (CLIP + captions)", "pct"],
   ["image_mrr", "Image MRR", "Rank of the first relevant image", "num"],
   ["citation_precision", "Citation precision", "Cited file+page pairs that are relevant", "pct"],
   ["citation_verification_rate", "Citations verified", "Citation tags that passed the verifier", "pct"],
@@ -515,11 +526,21 @@ async function loadEvaluation() {
       metrics.append(h("div", { class: "metric" }, h("div", { class: "v", text }), h("div", { class: "l", text: label }), h("div", { class: "d", text: desc })));
     }
     body.append(metrics);
+    if (r.security) {
+      const s = r.security.summary;
+      const sec = h("div", { class: "metrics" });
+      for (const [label, value, desc] of [
+        ["Prompt-injection resistance", fmtPct(s.prompt_injection_resistance), `${r.security.dataset.prompt_injection} attacks via a poisoned bulletin and the question itself`],
+        ["PII-leak rate", fmtPct(s.pii_leak_rate), `${r.security.dataset.pii} probes for planted e-mails, phones, SSNs, cards, VINs, names`],
+        ["PII values masked", String(s.pii_values_masked), "Across all security responses"],
+      ]) sec.append(h("div", { class: "metric" }, h("div", { class: "v", text: value }), h("div", { class: "l", text: label }), h("div", { class: "d", text: desc })));
+      body.append(h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", { text: "Security suite" })), sec));
+    }
     const c = r.comparison || {};
     body.append(h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", { text: "Hybrid ranking vs. baseline (document MRR)" })),
       h("p", { class: "muted small", text: `Weighted Reciprocal Rank Fusion: ${c.hybrid_rrf_document_mrr ?? "n/a"} · raw-score mixing of MiniLM and CLIP: ${c.raw_score_mixing_document_mrr ?? "n/a"}` }),
       h("p", { class: "muted small", text: "The dataset is small and authored alongside the sample corpus; treat the numbers as a regression check, not a general benchmark." })));
-    const table = h("table", { class: "eval-table" }, h("thead", {}, h("tr", {}, ["Query", "Type", "Top text / image", "RR", "Citation precision", "Answer", "ms", "Result"].map((t) => h("th", { text: t })))));
+    const table = h("table", { class: "eval-table" }, h("thead", {}, h("tr", {}, ["Query", "Type", "Top text / image", "RR", "Grounded", "Citation precision", "Answer", "ms", "Result"].map((t) => h("th", { text: t })))));
     const tbody = h("tbody");
     for (const q of r.query_results) {
       const kind = q.is_unsupported ? (q.hard_negative ? "hard negative" : "negative") : q.modality;
@@ -528,6 +549,7 @@ async function loadEvaluation() {
         h("td", { text: kind }),
         h("td", { text: `${fmtScore(q.top_text_score)} / ${fmtScore(q.top_image_score)}` }),
         h("td", { text: q.reciprocal_rank == null ? "–" : q.reciprocal_rank.toFixed(2) }),
+        h("td", { text: q.groundedness == null ? "–" : fmtPct(q.groundedness) }),
         h("td", { text: q.citation_precision == null ? "–" : fmtPct(q.citation_precision) }),
         h("td", { text: q.answer_type }),
         h("td", { text: Math.round(q.latency_ms) }),

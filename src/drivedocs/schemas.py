@@ -51,6 +51,9 @@ class ImageItem(BaseModel):
     width: int = Field(0, description="Image width in pixels")
     height: int = Field(0, description="Image height in pixels")
     format: str = Field("PNG", description="Stored image format")
+    caption: Optional[str] = Field(
+        None, description="Figure caption or nearby heading (PDF) / file-name description (standalone image)"
+    )
 
 
 DocumentStatus = Literal["processing", "ready", "failed"]
@@ -95,6 +98,7 @@ class ImageSearchResult(BaseModel):
     image: ImageItem
     score: float = Field(..., description="CLIP cosine similarity clipped to [0, 1]")
     rank: int = Field(..., description="1-indexed retrieval rank")
+    caption_score: Optional[float] = Field(None, description="MiniLM similarity between the query and the image caption")
     accepted: bool = Field(True, description="Image passed one of the image relevance rules")
     match_reason: Optional[str] = Field(None, description="Relevance rule that accepted the image")
 
@@ -173,6 +177,16 @@ class PassageEvidence(BaseModel):
     rank: int
     accepted: bool = Field(..., description="Score passed the text relevance threshold")
     cited: bool = Field(False, description="Passage is cited in the answer")
+    flags: List[str] = Field(default_factory=list, description="Security flags, e.g. 'prompt_injection'")
+
+
+class AgentStep(BaseModel):
+    """One tool call made by the LangChain agent."""
+
+    tool: str
+    query: str
+    results: int = Field(0, description="Number of relevant results the tool returned")
+    duration_ms: float = 0.0
 
 
 class CitationCheck(BaseModel):
@@ -196,6 +210,8 @@ class ChatResponse(BaseModel):
     answer_type: Literal["answer", "visual_only", "insufficient_evidence"] = "answer"
     provider: str = "extractive"
     warnings: List[str] = Field(default_factory=list)
+    agent_trace: List[AgentStep] = Field(default_factory=list, description="Tool calls made by the agent, in order")
+    pii_redactions: int = Field(0, description="Number of personal-data values masked in this response")
     passages: List[PassageEvidence] = Field(default_factory=list)
     citation_check: CitationCheck = Field(default_factory=CitationCheck)
     latency_ms: Optional[float] = None
@@ -250,6 +266,7 @@ class PublicImage(BaseModel):
     width: int = 0
     height: int = 0
     format: str = "PNG"
+    caption: Optional[str] = None
 
     @classmethod
     def from_item(cls, item: ImageItem) -> "PublicImage":
@@ -258,8 +275,9 @@ class PublicImage(BaseModel):
 
 class PublicImageSearchResult(BaseModel):
     image: PublicImage
-    score: float
+    score: float = Field(..., description="CLIP cosine similarity (image-to-image or text-to-image)")
     rank: int
+    caption_score: Optional[float] = Field(None, description="MiniLM similarity between the query and the caption")
     match_reason: Optional[str] = None
 
 

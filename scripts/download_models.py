@@ -55,6 +55,20 @@ def fetch_snapshot(repo_id: str) -> None:
     _report(repo_id, [str(p) for p in Path(path).rglob("*") if p.is_file()], started)
 
 
+def optimize_onnx() -> None:
+    """Create the int8-embedding variants of the text graphs (see drivedocs.onnx_optimize)."""
+    from drivedocs.onnx_models import _model_path
+
+    targets = [(settings.text_onnx_repo, settings.text_onnx_file)]
+    if settings.enable_image_search:
+        targets.append((settings.image_onnx_repo, settings.image_onnx_text_file))
+    for repo, filename in targets:
+        started = time.perf_counter()
+        path = Path(_model_path(repo, filename))
+        print(f"[+] optimized {repo}/{filename} -> {path.name} ({path.stat().st_size / 2**20:.0f} MB) "
+              f"in {time.perf_counter() - started:.1f}s", flush=True)
+
+
 def main() -> int:
     backend = settings.embedding_backend
     print(f"[*] Embedding backend: {backend}; image search: {settings.enable_image_search}", flush=True)
@@ -69,6 +83,7 @@ def main() -> int:
                 ["tokenizer.json", "config.json", "preprocessor_config.json",
                  settings.image_onnx_text_file, settings.image_onnx_vision_file],
             )
+        optimize_onnx()
         return 0
     fetch_snapshot(settings.text_model_name)
     if settings.enable_image_search:

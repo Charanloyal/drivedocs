@@ -184,3 +184,31 @@ def test_device_never_auto_selects_gpu():
 
     assert Settings._resolve_device("cpu") == "cpu"
     assert Settings._resolve_device("auto") == "cpu"
+
+
+def test_caption_text_strips_generic_visual_words():
+    from drivedocs.retrieval import caption_text
+
+    assert caption_text("Figure 5.1: Interior fuse box layout with fuse positions") == "Interior fuse box layout fuse positions"
+    assert caption_text("Show me the airbag deployment diagram") == "airbag deployment"
+
+
+def test_caption_fused_image_search_prefers_matching_caption(tmp_path):
+    from PIL import Image
+
+    images_dir = tmp_path / "img"
+    images_dir.mkdir()
+    items = []
+    for i, (caption, color) in enumerate([("fuse box layout", (255, 0, 0)), ("charging inlet and status light", (0, 0, 255))]):
+        path = images_dir / f"img_doc_{i:012d}.png"
+        Image.new("RGB", (64, 64), color).save(path)
+        items.append(ImageItem(image_id=f"img_doc_{i:012d}", doc_id=f"doc_{i:012d}", filename="manual.pdf",
+                               page_number=i + 1, image_path=str(path), url_path=f"/static/images/{path.name}",
+                               caption=caption))
+    image_index = ImageFAISSIndex(images_dir=images_dir, enabled=True)
+    image_index.add_images(items)
+    retriever = MultimodalRetriever(text_index=TextFAISSIndex(), image_index=image_index)
+    results = retriever.search_images("show the charging inlet diagram", top_k=2)
+    assert results[0].image.caption == "charging inlet and status light"
+    assert results[0].caption_score > results[1].caption_score
+    assert retriever.accept_image(results[0], visual_intent=True, text_pages=set()) == "caption_match"

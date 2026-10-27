@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import httpx
 
@@ -21,6 +21,7 @@ from drivedocs.chunking import reflow_lines
 from drivedocs.citations import CitationVerifier, content_tokens
 from drivedocs.config import settings
 from drivedocs.retrieval import VISUAL_INTENT
+from drivedocs.security import injection_signals, redact, redact_text
 from drivedocs.schemas import (
     ChatResponse,
     ImageReference,
@@ -68,7 +69,24 @@ def _looks_like_heading(sentence: str) -> bool:
         return True
     if "|" in sentence:
         return True
-    return len(sentence) < 80 and not sentence.rstrip().endswith((".", "!", "?", ")", '"'))
+    return len(sentence) < 80 and not sentence.rstrip().endswith((".", "!", "?", '."', '?"'))
+
+
+_LABELLED_LINE = re.compile(r"^[A-Z][A-Za-z ]{1,24}:\s+\S")
+
+
+def _extraction_units(text: str) -> List[str]:
+    """Candidate answer units: sentences, except that a block of labelled lines (e.g. a troubleshooting entry
+    "SYMPTOM: ... / CAUSE: ... / ACTION: ...") is kept together so the action is quoted with its symptom."""
+    units: List[str] = []
+    for block in re.split(r"\n\s*\n", text):
+        lines = [ln.strip() for ln in block.split("\n") if ln.strip()]
+        if len(lines) >= 2 and all(_LABELLED_LINE.match(ln) for ln in lines) and len(" ".join(lines)) <= 700:
+            joined = " ".join(ln if ln.endswith((".", "!", "?")) else ln + "." for ln in lines)
+            units.append(joined)
+        else:
+            units.extend(_SENTENCE_SPLIT.split(block))
+    return units
 
 
 def _matches(term: str, tokens: Set[str], prefixes: Set[str]) -> bool:
@@ -99,18 +117,34 @@ class GroundedMultimodalGenerator:
         openai_api_key: Optional[str] = None,
         verifier: Optional[CitationVerifier] = None,
         transport: Optional[httpx.BaseTransport] = None,
+        agent: Optional[Any] = None,
+        vocabulary: Optional[Callable[[], Set[str]]] = None,
+        pii_redaction: Optional[bool] = None,
     ) -> None:
         self.provider = (provider or settings.llm_provider).lower()
         self.gemini_api_key = gemini_api_key if gemini_api_key is not None else settings.gemini_api_key
         self.openai_api_key = openai_api_key if openai_api_key is not None else settings.openai_api_key
         self.verifier = verifier or CitationVerifier()
         self._transport = transport
+        # The LangChain agent (drivedocs.agent.DriveDocsAgent); used when provider == "agent".
+        self.agent = agent
+        # Callable returning the content-word vocabulary of the whole indexed corpus (for unsupported-term checks).
+        self.vocabulary = vocabulary
+        self.pii_redaction = settings.pii_redaction if pii_redaction is None else pii_redaction
 
     @property
     def llm_configured(self) -> bool:
+        if self.provider == "agent":
+            return bool(self.agent is not None and self.agent.available)
         return (self.provider == "gemini" and bool(self.gemini_api_key)) or (
             self.provider == "openai" and bool(self.openai_api_key)
         )
+
+    @property
+    def provider_label(self) -> str:
+        if self.provider == "agent" and self.llm_configured:
+            return self.agent.label
+        return self.provider if self.llm_configured else "extractive"
 
     # Public API ------------------------------------------------------------------------------------------------
 
@@ -131,56 +165,82 @@ class GroundedMultimodalGenerator:
             "visual_intent": evidence.visual_intent,
         }
 
-        if not evidence.has_sufficient_evidence or (not accepted_text and not accepted_images):
-            debug["reason"] = "insufficient_similarity"
-            return ChatResponse(
-                answer=self.INSUFFICIENT_EVIDENCE_MSG,
+        def refuse(reason: str, message: str = self.INSUFFICIENT_EVIDENCE_MSG, extra: Optional[List[str]] = None):
+            debug["reason"] = reason
+            return self._finalize(ChatResponse(
+                answer=message,
                 answer_type="insufficient_evidence",
                 confidence=evidence.top_confidence,
                 evidence_count=len(evidence.text_results),
                 passages=passages,
                 provider="extractive",
+                warnings=list(extra or []),
                 debug_info=debug if include_debug else None,
-            )
+            ))
+
+        if not evidence.has_sufficient_evidence or (not accepted_text and not accepted_images):
+            return refuse("insufficient_similarity")
+
+        missing = self._missing_terms(query, accepted_text) if accepted_text else []
+        if missing and not accepted_images and self._mostly_unsupported(query, missing):
+            terms = ", ".join(f"'{t}'" for t in missing)
+            return refuse("unsupported_terms", f"{self.INSUFFICIENT_EVIDENCE_MSG} The indexed documents do not mention {terms}.")
 
         image_refs = [self._image_ref(r) for r in accepted_images]
         warnings: List[str] = []
         answer: Optional[str] = None
         provider_used = "extractive"
+        agent_trace = []
+        pool = list(accepted_text)
 
-        if accepted_text and self.llm_configured:
+        if self.provider == "agent" and self.llm_configured:
+            from drivedocs.agent import AgentError
+
+            try:
+                run = self.agent.run(query)
+                agent_trace = run.steps
+                known = {r.chunk.chunk_id for r in pool}
+                pool += [r for r in run.text_results if r.chunk.chunk_id not in known]
+                known_images = {r.image.image_id for r in accepted_images}
+                for r in run.image_results:
+                    if r.image.image_id not in known_images:
+                        known_images.add(r.image.image_id)
+                        image_refs.append(self._image_ref(r))
+                raw = run.answer.strip()
+                if raw.startswith(self.INSUFFICIENT_EVIDENCE_MSG):
+                    answer, provider_used = self.INSUFFICIENT_EVIDENCE_MSG, self.agent.label
+                elif self.verifier.verify(raw, pool).check.verified == 0:
+                    warnings.append("The agent's answer contained no verifiable citations, so the extractive answer is shown.")
+                else:
+                    answer, provider_used = raw, self.agent.label
+            except AgentError as exc:
+                warnings.append(f"The LLM agent was unavailable ({exc}); showing the extractive answer instead.")
+        elif self.provider in {"gemini", "openai"} and self.llm_configured and accepted_text:
             try:
                 raw = self._generate_llm(query, accepted_text, accepted_images)
                 if raw.strip() == self.INSUFFICIENT_EVIDENCE_MSG:
-                    answer = raw.strip()
-                    provider_used = self.provider
+                    answer, provider_used = raw.strip(), self.provider
+                elif self.verifier.verify(raw, accepted_text).check.verified == 0:
+                    warnings.append(
+                        f"The {self.provider} answer contained no verifiable citations, so the extractive answer "
+                        "is shown instead."
+                    )
                 else:
-                    check = self.verifier.verify(raw, accepted_text)
-                    if check.check.verified == 0:
-                        warnings.append(
-                            f"The {self.provider} answer contained no verifiable citations, so the extractive answer "
-                            "is shown instead."
-                        )
-                    else:
-                        answer = raw
-                        provider_used = self.provider
+                    answer, provider_used = raw, self.provider
             except LLMProviderError as exc:
                 warnings.append(f"The {self.provider} provider was unavailable ({exc}); used the extractive answer.")
-        elif self.provider in {"gemini", "openai"} and not self.llm_configured:
+        elif self.provider in {"gemini", "openai", "agent"}:
             debug["note"] = f"{self.provider} selected but no API key configured; used extractive answer."
 
         answer_type = "answer"
         if answer is None:
             answer, answer_type = self._generate_extractive(query, accepted_text, accepted_images)
-
-        if answer_type == "answer" and answer != self.INSUFFICIENT_EVIDENCE_MSG:
-            missing = self._missing_terms(query, accepted_text)
-            if missing:
+            if answer_type == "answer" and missing:
                 terms = ", ".join(f"'{t}'" for t in missing)
                 answer = f"{self.NOT_MENTIONED_PREFIX} {terms}. The closest related evidence is:\n\n{answer}"
                 warnings.append(f"Query terms not found in the retrieved evidence: {terms}.")
 
-        verification = self.verifier.verify(answer, accepted_text)
+        verification = self.verifier.verify(answer, pool)
         answer = verification.answer
         warnings.extend(verification.warnings)
         cited_docs = {c.doc_id for c in verification.citations}
@@ -188,9 +248,12 @@ class GroundedMultimodalGenerator:
             warnings.append(
                 f"This answer combines evidence from {len(cited_docs)} documents; check each citation for consistency."
             )
-        if answer == self.INSUFFICIENT_EVIDENCE_MSG:
+        if answer.startswith(self.INSUFFICIENT_EVIDENCE_MSG):
             answer_type = "insufficient_evidence"
 
+        if agent_trace:
+            known = {p.chunk_id for p in passages}
+            passages += [p for p in self._passages(pool) if p.chunk_id not in known]
         cited_ids = {c.chunk_id for c in verification.citations}
         for p in passages:
             p.cited = p.chunk_id in cited_ids
@@ -204,14 +267,20 @@ class GroundedMultimodalGenerator:
                 if img.match_reason != "same_page_as_text_evidence" or (img.doc_id, img.page_number) in cited_pages
             ]
 
-        if answer_type == "answer" and image_refs:
+        if answer_type == "answer" and image_refs and provider_used == "extractive":
             refs = "; ".join(
                 f"{img.filename}" + (f" (Page {img.page_number})" if img.page_number else "") for img in image_refs
             )
             answer += f"\n\nRelated visual evidence: {refs}."
 
+        if any(p.flags for p in passages):
+            warnings.append(
+                "A retrieved passage contains instruction-like text (possible prompt injection); it was treated as "
+                "data and not followed."
+            )
+
         debug["provider_used"] = provider_used
-        return ChatResponse(
+        return self._finalize(ChatResponse(
             answer=answer,
             answer_type=answer_type,  # type: ignore[arg-type]
             citations=verification.citations,
@@ -220,10 +289,36 @@ class GroundedMultimodalGenerator:
             confidence=evidence.top_confidence,
             provider=provider_used,
             warnings=warnings,
+            agent_trace=agent_trace,
             passages=passages,
             citation_check=verification.check,
             debug_info=debug if include_debug else None,
-        )
+        ))
+
+    def _finalize(self, resp: ChatResponse) -> ChatResponse:
+        """Mask personal data in every text field that leaves the server."""
+        if not self.pii_redaction:
+            return resp
+        total = 0
+
+        def clean(text: Optional[str]) -> Optional[str]:
+            nonlocal total
+            if not text:
+                return text
+            result = redact(text)
+            total += result.total
+            return result.text
+
+        resp.answer = clean(resp.answer) or ""
+        for c in resp.citations:
+            c.snippet = clean(c.snippet) or ""
+        for p in resp.passages:
+            p.text = clean(p.text) or ""
+        resp.warnings = [clean(w) or "" for w in resp.warnings]
+        resp.pii_redactions = total
+        if total:
+            resp.warnings.append(f"{total} personal-data value(s) were masked in this response.")
+        return resp
 
     # Extractive synthesis --------------------------------------------------------------------------------------
 
@@ -234,21 +329,21 @@ class GroundedMultimodalGenerator:
         image_results: List[ImageSearchResult],
     ) -> Tuple[str, str]:
         terms = self._query_terms(query)
-        candidates: List[Tuple[float, str, TextSearchResult]] = []
+        candidates: List[Tuple[float, str, TextSearchResult, Set[str]]] = []
         for res in text_results:
-            for raw in _SENTENCE_SPLIT.split(reflow_lines(res.chunk.text)):
+            for raw in _extraction_units(reflow_lines(res.chunk.text)):
                 sentence = _clean_sentence(raw)
-                if len(sentence) < 20 or _looks_like_heading(sentence):
-                    continue
+                if len(sentence) < 20 or _looks_like_heading(sentence) or injection_signals(sentence):
+                    continue  # injected instructions are document data, never quoted as an answer
                 tokens = set(content_tokens(sentence))
                 prefixes = _prefix_set(tokens)
-                hits = sum(1 for t in terms if _matches(t, tokens, prefixes))
-                if hits == 0:
+                covered = {t for t in terms if _matches(t, tokens, prefixes)}
+                if not covered:
                     continue
-                score = hits / (len(terms) + 1.0) + 0.5 * res.score
+                score = len(covered) / (len(terms) + 1.0) + 0.5 * res.score
                 if _CAPTION.match(sentence):
                     score *= 0.5  # captions label a figure; prefer sentences that state facts
-                candidates.append((score, sentence, res))
+                candidates.append((score, sentence, res, covered))
 
         if not candidates:
             if image_results:
@@ -257,15 +352,25 @@ class GroundedMultimodalGenerator:
 
         candidates.sort(key=lambda c: c[0], reverse=True)
         best = candidates[0][0]
+        # Terms found in most retrieved passages (e.g. the product name) do not make a sentence informative.
+        passage_tokens = [set(content_tokens(r.chunk.text)) for r in text_results]
+        common = {t for t in terms if len(passage_tokens) >= 3
+                  and sum(1 for toks in passage_tokens if _matches(t, toks, _prefix_set(toks))) * 2 >= len(passage_tokens)}
         selected: List[str] = []
         seen: Set[str] = set()
-        for score, sentence, res in candidates:
+        covered_so_far: Set[str] = set()
+        for score, sentence, res, covered in candidates:
             if score < 0.6 * best:
                 break
             key = re.sub(r"\W+", "", sentence.lower())[:80]
             if key in seen:
                 continue
+            # After the best sentence, add others only if they cover question terms not covered yet (no padding
+            # with sentences that merely repeat the same words from another part of the corpus).
+            if selected and not (covered - covered_so_far - common):
+                continue
             seen.add(key)
+            covered_so_far |= covered
             selected.append(f"{sentence} [Source: {res.chunk.filename}, Page {res.chunk.page_number}]")
             if len(selected) >= settings.max_answer_sentences:
                 break
@@ -278,6 +383,7 @@ class GroundedMultimodalGenerator:
             "strong_clip_match": "strong visual similarity",
             "visual_query_match": "your request for a visual",
             "same_page_as_text_evidence": "it appears on the same page as related text",
+            "caption_match": "its caption matching your request",
         }.get(top.match_reason or "", "visual similarity")
         return (
             "No text passage answers this directly, but a relevant image was found: "
@@ -293,10 +399,13 @@ class GroundedMultimodalGenerator:
         return terms or set(content_tokens(query))
 
     def _missing_terms(self, query: str, text_results: List[TextSearchResult]) -> List[str]:
-        """Salient query terms that appear nowhere in the accepted evidence (e.g. 'Paxos' when only Raft is indexed).
+        """Query terms that the evidence cannot support.
 
-        Only specific terms are checked (capitalized names not at the start of the question, acronyms and tokens
-        containing digits); generic words are too often paraphrased to be a reliable signal.
+        * Specific terms (capitalized names not at the start of the question, acronyms, tokens with digits) missing
+          from the accepted evidence, e.g. 'Paxos' when only Raft is described.
+        * Content words missing from the *entire* indexed corpus, when at least two (and a third) of the question's
+          content words are missing, e.g. 'spark plugs' in an electric-vehicle manual. A single unknown word is
+          ignored because it is usually a paraphrase ('torque' vs. 'N·m').
         """
         corpus = " ".join(f"{r.chunk.section or ''} {r.chunk.text}" for r in text_results)
         tokens = set(content_tokens(corpus))
@@ -312,7 +421,21 @@ class GroundedMultimodalGenerator:
             for part in content_tokens(word):
                 if len(part) >= 3 and part not in QUESTION_WORDS and part not in salient:
                     salient.append(part)
-        return [t for t in salient if not _matches(t, tokens, prefixes)]
+        missing = [t for t in salient if not _matches(t, tokens, prefixes)]
+
+        vocabulary = self.vocabulary() if self.vocabulary else None
+        if vocabulary:
+            vocab_prefixes = _prefix_set(vocabulary)
+            content = sorted({t for t in self._query_terms(VISUAL_INTENT.sub(" ", query)) if len(t) >= 4})
+            unknown = [t for t in content if not _matches(t, vocabulary, vocab_prefixes)]
+            if len(unknown) >= 2 and len(unknown) * 3 >= len(content):
+                missing += [t for t in unknown if t not in missing]
+        return missing
+
+    def _mostly_unsupported(self, query: str, missing: List[str]) -> bool:
+        """True when at least half of the question's content words are unknown to the evidence/corpus."""
+        content = {t for t in self._query_terms(VISUAL_INTENT.sub(" ", query)) if len(t) >= 3}
+        return bool(content) and len(set(missing) & content) * 2 >= len(content)
 
     @staticmethod
     def _passages(results: List[TextSearchResult]) -> List[PassageEvidence]:
@@ -327,6 +450,7 @@ class GroundedMultimodalGenerator:
                 score=round(r.score, 4),
                 rank=r.rank,
                 accepted=r.accepted,
+                flags=["prompt_injection"] if injection_signals(r.chunk.text) else [],
             )
             for r in results
         ]
@@ -342,7 +466,7 @@ class GroundedMultimodalGenerator:
             image_url=img.url_path,
             doc_id=img.doc_id,
             score=round(res.score, 4),
-            description=f"Visual evidence from {img.filename}{page}",
+            description=img.caption or f"Visual evidence from {img.filename}{page}",
             match_reason=res.match_reason,
         )
 
@@ -361,7 +485,7 @@ class GroundedMultimodalGenerator:
         self, query: str, text_results: List[TextSearchResult], image_results: List[ImageSearchResult]
     ) -> str:
         blocks = [
-            f"[Evidence #{i}] Source: {r.chunk.filename} | Page: {r.chunk.page_number}\n{neutralize(r.chunk.text)}"
+            f"[Evidence #{i}] Source: {r.chunk.filename} | Page: {r.chunk.page_number}\n{neutralize(redact_text(r.chunk.text))}"
             for i, r in enumerate(text_results, start=1)
         ]
         images = [

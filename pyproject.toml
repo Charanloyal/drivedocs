@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drivedocs"
-version = "0.2.0"
-description = "DriveDocs AI: document intelligence with multimodal retrieval (MiniLM text + CLIP images) and verified citations"
+version = "0.3.0"
+description = "DriveDocs AI: multimodal RAG over vehicle manuals with a LangChain agent, CLIP + FAISS retrieval, verified citations and PII redaction"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -15,6 +15,9 @@ authors = [
 # Compatible ranges for library use; requirements.txt pins the exact versions verified for deployment.
 dependencies = [
     "onnxruntime>=1.17.0",
+    "onnx>=1.15.0",
+    "langchain-core>=1.0.0",
+    "langchain-google-genai>=4.0.0",
     "tokenizers>=0.15.0",
     "huggingface-hub>=0.23.0",
     "faiss-cpu>=1.8.0",

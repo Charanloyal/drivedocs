@@ -134,6 +134,25 @@ def sanitize_filename(filename: str, max_length: int = 120) -> str:
     return name
 
 
+_CAPTION_LINE = re.compile(r"^\s*(?:figure|fig\.|diagram|chart|table|image)\s*[\w.\-]*\s*[:.\-\u2013]", re.IGNORECASE)
+
+
+def page_caption(page_text: str, image_index: int = 0, max_chars: int = 240) -> Optional[str]:
+    """Caption for the image_index-th image on a page: the matching "Figure N:" line, else the page's heading line."""
+    lines = [ln.strip() for ln in reflow_lines(page_text or "").split("\n") if ln.strip()]
+    captions = [ln for ln in lines if _CAPTION_LINE.match(ln)]
+    if captions:
+        return captions[min(image_index, len(captions) - 1)][:max_chars]
+    return lines[0][:max_chars] if lines else None
+
+
+def filename_caption(filename: str) -> Optional[str]:
+    """Readable description from a file name, e.g. "front_compartment_diagram.png" -> "front compartment diagram"."""
+    stem = Path(filename).stem
+    words = re.sub(r"[_\-.]+", " ", re.sub(r"(?<=[a-z])(?=[A-Z])", " ", stem)).strip()
+    return words or None
+
+
 def compute_content_hash(data: bytes) -> str:
     """Compute SHA-256 hash of file byte content for deduplication and integrity."""
     return hashlib.sha256(data).hexdigest()
@@ -400,7 +419,10 @@ class DocumentIngestionManager:
                 seen_image_hashes.add(digest)
                 image_id = f"img_{doc_id}_p{page_num}_{img_idx}"
                 all_images.append(
-                    self._store_image(image_id, doc_id, filename, page_num, png_bytes, pil_img.size)
+                    self._store_image(
+                        image_id, doc_id, filename, page_num, png_bytes, pil_img.size,
+                        caption=page_caption(page_text, img_idx),
+                    )
                 )
 
         if failed_text_pages:
@@ -448,7 +470,9 @@ class DocumentIngestionManager:
             )
 
         image_id = f"img_{doc_id}"
-        item = self._store_image(image_id, doc_id, filename, 1, self._to_png_bytes(pil_img), pil_img.size)
+        item = self._store_image(
+            image_id, doc_id, filename, 1, self._to_png_bytes(pil_img), pil_img.size, caption=filename_caption(filename)
+        )
         metadata = DocumentMetadata(
             doc_id=doc_id,
             filename=filename,
@@ -496,7 +520,14 @@ class DocumentIngestionManager:
         return buf.getvalue()
 
     def _store_image(
-        self, image_id: str, doc_id: str, filename: str, page_num: int, png_bytes: bytes, size: Tuple[int, int]
+        self,
+        image_id: str,
+        doc_id: str,
+        filename: str,
+        page_num: int,
+        png_bytes: bytes,
+        size: Tuple[int, int],
+        caption: Optional[str] = None,
     ) -> ImageItem:
         image_filename = f"{image_id}.png"
         out_path = self.images_dir / image_filename
@@ -512,6 +543,7 @@ class DocumentIngestionManager:
             width=size[0],
             height=size[1],
             format="PNG",
+            caption=caption,
         )
 
     def discard(self, parsed: ParsedDocument) -> None:

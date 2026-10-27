@@ -52,7 +52,7 @@ class Settings:
         # Application
         app_cfg = self.raw_config.get("app", {})
         self.app_name: str = app_cfg.get("name", "DriveDocs")
-        self.app_version: str = str(app_cfg.get("version", "0.2.0"))
+        self.app_version: str = str(app_cfg.get("version", "0.3.0"))
         self.host: str = _env_str("DRIVEDOCS_HOST", app_cfg.get("host", "0.0.0.0"))
         self.port: int = int(os.getenv("PORT", os.getenv("DRIVEDOCS_PORT", app_cfg.get("port", 8000))))
         self.debug: bool = _env_bool("DRIVEDOCS_DEBUG", bool(app_cfg.get("debug", False)))
@@ -161,10 +161,11 @@ class Settings:
         self.sample_files: List[str] = runtime_cfg.get(
             "sample_files",
             [
-                "quantum_photonics_spec.pdf",
-                "agent_safety_protocol.md",
-                "distributed_systems_notes.txt",
-                "architecture_diagram.png",
+                "aurora_owners_manual.pdf",
+                "maintenance_schedule.md",
+                "troubleshooting_guide.txt",
+                "service_record_2026-03.txt",
+                "front_compartment_diagram.png",
             ],
         )
         self.reports_dir: Path = self.project_root / "reports"
@@ -174,12 +175,15 @@ class Settings:
         self.default_top_k_text: int = int(ret_cfg.get("default_top_k_text", 4))
         self.default_top_k_images: int = int(ret_cfg.get("default_top_k_images", 2))
         # Kept for backwards compatibility: used as the text threshold when text_min_score is absent.
-        self.min_similarity_threshold: float = float(ret_cfg.get("min_similarity_threshold", 0.30))
+        self.min_similarity_threshold: float = float(ret_cfg.get("min_similarity_threshold", 0.27))
         self.text_min_score: float = float(ret_cfg.get("text_min_score", self.min_similarity_threshold))
         self.text_context_min_score: float = float(ret_cfg.get("text_context_min_score", 0.20))
         self.image_min_score: float = float(ret_cfg.get("image_min_score", 0.30))
-        self.image_min_score_visual_query: float = float(ret_cfg.get("image_min_score_visual_query", 0.25))
+        self.image_min_score_visual_query: float = float(ret_cfg.get("image_min_score_visual_query", 0.27))
         self.image_min_score_colocated: float = float(ret_cfg.get("image_min_score_colocated", 0.25))
+        # Caption-augmented image retrieval (MiniLM similarity between the query and an image's caption).
+        self.image_caption_min_score: float = float(ret_cfg.get("image_caption_min_score", 0.40))
+        self.image_caption_floor: float = float(ret_cfg.get("image_caption_floor", 0.30))
         self.text_weight: float = float(ret_cfg.get("text_weight", 0.7))
         self.image_weight: float = float(ret_cfg.get("image_weight", 0.3))
         self.rrf_k: int = int(ret_cfg.get("rrf_k", 60))
@@ -187,7 +191,7 @@ class Settings:
         # Generation
         gen_cfg = self.raw_config.get("generation", {})
         self.llm_provider: str = (_env_str("LLM_PROVIDER", gen_cfg.get("provider", "extractive")) or "extractive").lower()
-        self.gemini_model: str = _env_str("GEMINI_MODEL", gen_cfg.get("gemini_model", "gemini-1.5-flash"))
+        self.gemini_model: str = _env_str("GEMINI_MODEL", gen_cfg.get("gemini_model", "gemini-3.5-flash-lite"))
         self.openai_model: str = _env_str("OPENAI_MODEL", gen_cfg.get("openai_model", "gpt-4o-mini"))
         self.gemini_api_key: Optional[str] = _env_str("GEMINI_API_KEY", None)
         self.openai_api_key: Optional[str] = _env_str("OPENAI_API_KEY", None)
@@ -195,6 +199,8 @@ class Settings:
         self.max_tokens: int = int(gen_cfg.get("max_tokens", 512))
         self.llm_timeout_seconds: float = float(gen_cfg.get("timeout_seconds", 30))
         self.max_answer_sentences: int = int(gen_cfg.get("max_answer_sentences", 3))
+        self.agent_max_steps: int = int(_env_str("DRIVEDOCS_AGENT_MAX_STEPS", str(gen_cfg.get("agent_max_steps", 4))))
+        self.pii_redaction: bool = _env_bool("DRIVEDOCS_PII_REDACTION", bool(gen_cfg.get("pii_redaction", True)))
 
     def ensure_storage_dirs(self) -> None:
         """Create storage directories. Called by the storage layer, not at import time."""

@@ -1,7 +1,8 @@
 """Multimodal retrieval over two separate vector spaces.
 
 * Text questions are embedded with MiniLM and searched in the text index.
-* The same question is embedded with the CLIP text tower and searched in the image index.
+* The same question is embedded with the CLIP text tower and searched in the image index; that ranking is fused (by
+  rank) with a ranking of the images' captions (PDF figure captions / file names) by MiniLM similarity.
 * Each modality is judged against its own relevance rule; raw scores from the two spaces are never compared.
 * A hybrid evidence list is produced with weighted Reciprocal Rank Fusion (rank-based, so it is scale-free).
 """
@@ -10,7 +11,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
+
+import numpy as np
 
 from drivedocs.config import settings
 from drivedocs.ingestion import ParsedDocument
@@ -29,6 +32,19 @@ def has_visual_intent(query: str) -> bool:
     return bool(VISUAL_INTENT.search(query))
 
 
+_FIGURE_LABEL = re.compile(r"^\s*(?:figure|fig\.|table|chart|diagram|image)\s*[\w.\-]*\s*[:.\-\u2013]\s*", re.IGNORECASE)
+_REQUEST_WORDS = re.compile(r"\b(show|find|display|give|see|view|open|me|please|the|a|an|of|with|for)\b", re.IGNORECASE)
+
+
+def caption_text(text: str) -> str:
+    """Subject of a caption or visual request: drops "Figure 5.1:" labels and generic visual/request words so that
+    e.g. "airbag deployment diagram" does not match "front compartment diagram" just because both say "diagram"."""
+    text = _FIGURE_LABEL.sub("", text)
+    text = VISUAL_INTENT.sub(" ", text)
+    text = _REQUEST_WORDS.sub(" ", text)
+    return re.sub(r"\s+", " ", text).strip() or text
+
+
 def _normalize_for_dedupe(text: str) -> str:
     return re.sub(r"\W+", " ", text.lower()).strip()
 
@@ -44,6 +60,7 @@ class MultimodalRetriever:
         image_min_score: Optional[float] = None,
         image_min_score_visual_query: Optional[float] = None,
         image_min_score_colocated: Optional[float] = None,
+        image_caption_min_score: Optional[float] = None,
         text_context_min_score: Optional[float] = None,
         text_weight: Optional[float] = None,
         image_weight: Optional[float] = None,
@@ -67,6 +84,13 @@ class MultimodalRetriever:
         self.image_min_score_colocated = (
             image_min_score_colocated if image_min_score_colocated is not None else settings.image_min_score_colocated
         )
+        self.image_caption_min_score = (
+            image_caption_min_score if image_caption_min_score is not None else settings.image_caption_min_score
+        )
+        self.image_caption_floor = settings.image_caption_floor
+        self._caption_cache: Dict[str, np.ndarray] = {}
+        self._caption_ids: List[str] = []
+        self._caption_mat: Optional[np.ndarray] = None
         self.text_weight = text_weight if text_weight is not None else settings.text_weight
         self.image_weight = image_weight if image_weight is not None else settings.image_weight
         self.rrf_k = rrf_k if rrf_k is not None else settings.rrf_k
@@ -100,12 +124,76 @@ class MultimodalRetriever:
         score = result.score
         if score >= self.image_min_score:
             return "strong_clip_match"
-        if visual_intent and score >= self.image_min_score_visual_query:
+        caption = result.caption_score
+        if visual_intent and caption is not None and caption >= self.image_caption_min_score:
+            return "caption_match"
+        if visual_intent and score >= self.image_min_score_visual_query and (
+            caption is None or caption >= self.image_caption_floor
+        ):
             return "visual_query_match"
         page = result.image.page_number
         if page is not None and (result.image.doc_id, page) in text_pages and score >= self.image_min_score_colocated:
             return "same_page_as_text_evidence"
         return None
+
+    # Caption-augmented image ranking ---------------------------------------------------------------------------
+
+    def _caption_matrix(self) -> Tuple[List[str], Optional[np.ndarray]]:
+        """MiniLM vectors of every image caption, cached and refreshed when the image set changes."""
+        images = self.image_index.images
+        ids = [img.image_id for img in images if img.caption]
+        if ids != self._caption_ids:
+            missing = [img for img in images if img.caption and img.image_id not in self._caption_cache]
+            if missing:
+                vecs = self.text_index.embedding_model.encode([caption_text(img.caption) for img in missing], normalize=True)
+                for img, vec in zip(missing, vecs):
+                    self._caption_cache[img.image_id] = vec
+            alive = set(ids)
+            self._caption_cache = {k: v for k, v in self._caption_cache.items() if k in alive}
+            self._caption_ids = ids
+            self._caption_mat = np.vstack([self._caption_cache[i] for i in ids]) if ids else None
+        return self._caption_ids, self._caption_mat
+
+    def search_images(self, query: str, top_k: int) -> List[ImageSearchResult]:
+        """Text-to-image search: Reciprocal Rank Fusion of the CLIP ranking and the caption-similarity ranking.
+
+        CLIP cosine (`score`) and caption similarity (`caption_score`) live in different spaces and are reported
+        separately; only their ranks are combined.
+        """
+        n = self.image_index.count()
+        if n == 0 or top_k <= 0:
+            return []
+        clip_results = self.image_index.search_by_text(query, top_k=n)
+        if not clip_results:
+            return []
+        clip_rank = {r.image.image_id: r.rank for r in clip_results}
+        caption_scores: Dict[str, float] = {}
+        caption_rank: Dict[str, int] = {}
+        ids, mat = self._caption_matrix()
+        if mat is not None:
+            q = self.text_index.embedding_model.encode([caption_text(query)], normalize=True)[0]
+            sims = mat @ q
+            for rank, idx in enumerate(np.argsort(-sims), start=1):
+                caption_scores[ids[idx]] = float(np.clip(sims[idx], 0.0, 1.0))
+                caption_rank[ids[idx]] = rank
+
+        def fused(res: ImageSearchResult) -> float:
+            value = 1.0 / (self.rrf_k + clip_rank[res.image.image_id])
+            if res.image.image_id in caption_rank:
+                value += 1.0 / (self.rrf_k + caption_rank[res.image.image_id])
+            return value
+
+        def confident(res: ImageSearchResult) -> bool:
+            cap = caption_scores.get(res.image.image_id)
+            return res.score >= self.image_min_score or (cap is not None and cap >= self.image_caption_min_score)
+
+        # Images that pass a confident rule (strong CLIP match or matching caption) first, then by fused rank.
+        ordered = sorted(clip_results, key=lambda r: (not confident(r), -fused(r)))[:top_k]
+        return [
+            res.model_copy(update={"rank": i, "caption_score": round(caption_scores[res.image.image_id], 4)
+                                   if res.image.image_id in caption_scores else None})
+            for i, res in enumerate(ordered, start=1)
+        ]
 
     def dedupe_text(self, results: List[TextSearchResult]) -> List[TextSearchResult]:
         seen: Set[str] = set()
@@ -140,7 +228,7 @@ class MultimodalRetriever:
         visual_intent = has_visual_intent(query)
         image_matches: List[ImageSearchResult] = []
         if k_img > 0 and self.image_index.count() > 0:
-            image_matches = self.image_index.search_by_text(query, top_k=k_img)
+            image_matches = self.search_images(query, top_k=k_img)
 
         accepted_text = [r for r in text_matches if r.accepted]
         # Co-location only counts passages that passed the strict gate, not the wider context pool.

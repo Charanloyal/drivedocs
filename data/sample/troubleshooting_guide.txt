@@ -1,0 +1,25 @@
+NORTHWIND AURORA TROUBLESHOOTING GUIDE (synthetic sample content)
+
+SYMPTOM: The vehicle does not power on and the touchscreen stays dark.
+CAUSE: The 12V battery is discharged.
+ACTION: Jump-start the 12V system using the terminals in the front compartment, then drive for at least 30 minutes so the 12V battery recharges.
+
+SYMPTOM: Charging always stops at 80%.
+CAUSE: The charge limit is set to 80%, which is the recommended setting for daily driving.
+ACTION: Open Charging > Charge Limit on the touchscreen and raise the limit before a long trip.
+
+SYMPTOM: The tire pressure warning light stays on after the tires were rotated or inflated.
+CAUSE: The tire pressure monitoring system still uses the old reference values.
+ACTION: With the vehicle stopped, press and hold the TPMS reset button below the steering column for 3 seconds until the light flashes twice, then drive above 25 km/h for 10 minutes.
+
+SYMPTOM: The key fob is not detected ("Key not found").
+CAUSE: The fob battery is weak or there is radio interference.
+ACTION: Place the fob on the marked backup reader in the centre console cup holder and press the brake pedal to start. Replace the CR2032 fob battery.
+
+SYMPTOM: The infotainment screen is frozen.
+CAUSE: The infotainment computer stopped responding.
+ACTION: Press and hold both steering-wheel scroll buttons for 10 seconds until the screen restarts. Driving functions are not affected.
+
+SYMPTOM: Squealing noise when braking after the car has been parked for several days.
+CAUSE: Light surface rust on the brake discs, common because regenerative braking uses the friction brakes less.
+ACTION: Brake firmly a few times at low speed in a safe place. If the noise continues, book a brake inspection.

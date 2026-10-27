@@ -118,8 +118,8 @@ def test_model_change_triggers_reembedding(make_service, tmp_path):
 def test_seeding_sample_data(make_service, tmp_path):
     service = make_service(root=tmp_path / "seed", seed=True)
     names = {d.filename for d in service.list_documents().documents}
-    assert {"quantum_photonics_spec.pdf", "agent_safety_protocol.md", "distributed_systems_notes.txt",
-            "architecture_diagram.png"} <= names
+    assert {"aurora_owners_manual.pdf", "maintenance_schedule.md", "troubleshooting_guide.txt",
+            "service_record_2026-03.txt", "front_compartment_diagram.png"} <= names
     assert all(d.source == "sample" for d in service.list_documents().documents)
     # Bundled samples are not copied into private uploads.
     assert not list(service.storage.uploads_dir.iterdir())
@@ -131,11 +131,14 @@ def test_chat_end_to_end_with_page_citations(make_service, tmp_path, monkeypatch
 
     monkeypatch.setattr(settings, "embedding_backend", os.environ["DRIVEDOCS_TEST_REAL_BACKEND"])
     service = make_service(root=tmp_path / "chat", seed=True)
-    resp = service.chat(ChatRequest(query="What is the heartbeat interval of the Raft leader?", include_debug=True))
-    assert "150 milliseconds" in resp.answer
-    assert resp.citations and resp.citations[0].filename == "distributed_systems_notes.txt"
-    assert resp.citations[0].page_number == 1 and resp.citations[0].verified
+    resp = service.chat(ChatRequest(query="Which fuse protects the rear window defroster?", include_debug=True))
+    assert "F12" in resp.answer
+    assert resp.citations and resp.citations[0].filename == "aurora_owners_manual.pdf"
+    assert resp.citations[0].page_number == 5 and resp.citations[0].verified
     assert resp.latency_ms is not None and "fused_ranking" in resp.debug_info
+    record = service.chat(ChatRequest(query="What is the customer's email and phone number on the service record?"))
+    assert "jane.example@example.com" not in record.model_dump_json()
+    assert "010-2345" not in record.model_dump_json()
 
 
 def test_health_is_cheap_and_ready_reports_components(make_service, tmp_path):

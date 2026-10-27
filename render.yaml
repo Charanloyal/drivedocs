@@ -2,13 +2,13 @@
 #
 # One free web service runs the FastAPI app, which also serves the web UI. No database or other services are needed.
 #
-# Sizing (measured locally, see docs/DEPLOYMENT.md §2): embeddings run on ONNX Runtime (no PyTorch). With MiniLM +
-# CLIP and the sample corpus the process peaked at ~0.45 GB, which fits the 512 MB Free instance. If you add many
-# large documents, switch `plan` to `starter` or `standard`, or set DRIVEDOCS_ENABLE_IMAGE_SEARCH=false (~0.25 GB).
+# Sizing (see docs/DEPLOYMENT.md section 2): embeddings run on ONNX Runtime (no PyTorch) with int8 embedding
+# tables, the demo index is built at build time, and the CLIP vision tower is loaded only when an image is uploaded
+# or searched by image. This keeps the service within the 512 MB Free instance with the LangChain agent enabled.
 #
 # Free-plan behaviour: the service sleeps after 15 minutes without traffic and takes ~1 minute to wake up.
-# Storage is ephemeral: uploads are lost on restart/redeploy/sleep; the bundled sample documents are re-indexed on
-# every boot and the UI says so. Persistent disks require a paid plan (see the bottom of this file).
+# Storage is ephemeral: uploads are lost on restart/redeploy/sleep; the bundled sample documents (indexed at build
+# time) are back after every restart and the UI says so. Persistent disks require a paid plan (see the bottom).
 services:
   - type: web
     name: drivedocs
@@ -20,7 +20,8 @@ services:
       pip install --upgrade pip &&
       pip install -r requirements.txt &&
       pip install --no-deps -e . &&
-      HF_HUB_OFFLINE=0 python scripts/download_models.py
+      HF_HUB_OFFLINE=0 python scripts/download_models.py &&
+      python scripts/build_demo_index.py
     # Single worker: every worker would load its own copy of the models. No --reload in production.
     startCommand: uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
     # /health never loads models: 200 while starting/ready, 503 only if start-up failed (so a broken deploy fails).
@@ -31,13 +32,15 @@ services:
         value: 3.14.7
       - key: DEVICE
         value: cpu
+      # LangChain tool-calling agent on Google Gemini. Needs GEMINI_API_KEY (free tier works); without a key, or on
+      # rate limits/errors, answers fall back to the keyless extractive answerer.
       - key: LLM_PROVIDER
-        value: extractive
-      # Optional secrets: Render asks for these when the Blueprint is applied. Leave empty for the keyless
-      # extractive answerer; never put real values in this file.
+        value: agent
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      # Secret: Render asks for it when the Blueprint is applied (or set it under Environment). Never put the real
+      # value in this file.
       - key: GEMINI_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
         sync: false
       # Models (~270 MB of ONNX files) are downloaded during the build into the project directory, which Render keeps
       # for runtime. Render also applies these variables to the build, so the build command overrides HF_HUB_OFFLINE.
@@ -62,6 +65,8 @@ services:
       - key: DRIVEDOCS_MAX_DOCUMENTS
         value: "100"
       # Small shared CPU: avoid oversubscribing threads; limit glibc malloc arenas to keep RSS low.
+      - key: DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS
+        value: "120"
       - key: DRIVEDOCS_ONNX_THREADS
         value: "2"
       - key: DRIVEDOCS_MAX_CONCURRENT_INFERENCE

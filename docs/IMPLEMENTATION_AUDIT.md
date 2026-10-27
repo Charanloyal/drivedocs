@@ -204,4 +204,27 @@ never compared vector-to-vector. **[code]**
 | B20 httpx | Fixed | Runtime dependency |
 | Missing features §4.1–4.12 | Implemented | Details/delete endpoints, statuses, `/ready`, verifier, hybrid ranking, heading context, image dedupe, content sniffing, failure records, new UI, mock embeddings, logging |
 | Deployment footprint | Improved | Embeddings moved to ONNX Runtime (no PyTorch): ~0.44 GB RAM instead of ~1 GB, so the full demo fits Render's free 512 MB plan; evaluation re-verified (19/19). See `docs/RAG_DESIGN.md` §9 |
-| Not verified | Open | `docker build` was not run (Docker unavailable) and memory was not measured on Linux. The model download script, a clean install from `requirements.txt`, Linux/CPython 3.14 wheel resolution and a Render-equivalent runtime were verified later (see `docs/DEPLOYMENT.md` §1). No live Render deployment exists yet |
+| Not verified | Open | `docker build` was not run (Docker unavailable). The model download script, a clean install from `requirements.txt`, Linux/CPython 3.14 wheel resolution and a Render-equivalent runtime were verified later (see `docs/DEPLOYMENT.md` §1) |
+| Live deployment | Done | Deployed on Render Free at <https://drivedocs-3xr4.onrender.com>; smoke test against the public URL (see `docs/DEPLOYMENT.md` §5) |
+
+## 11. Second iteration: alignment with the project's stated goals (v0.3.0)
+
+The project is described as "a LangChain agent answering questions over vehicle-manual text and diagrams with CLIP
+embeddings and FAISS retrieval, evaluated on Recall@5 and groundedness with prompt-injection and PII-leak security
+tests". After the first deployment, a review against that description found four gaps:
+
+| Gap | Resolution | Evidence |
+| --- | --- | --- |
+| No LangChain or agent (LangChain had only been used by the old chunker, and was removed in B14) | `agent.py`: Gemini via `langchain-google-genai`, bound to `search_manual_text` / `search_diagrams` `StructuredTool`s; bounded tool loop; verified citations; extractive fallback | `tests/test_agent.py` (scripted LangChain chat model: tool use, step limit, fabricated citations, provider errors, injected tool output) |
+| Demo corpus was photonics/Raft, not vehicle manuals | Synthetic Northwind Aurora EV corpus with diagrams; old corpus kept as test fixtures | `scripts/seed_sample_data.py`, `data/sample/` |
+| No groundedness metric | Claim-level groundedness against the cited passage | `evaluation.py`, `reports/EVALUATION.md` (100%) |
+| No prompt-injection or PII tests | `security.py` (PII masking, injection signals) + a 10-query adversarial suite with a poisoned bulletin and planted PII | `tests/test_security.py`; suite 10/10 |
+
+Also in this iteration:
+- caption-fused diagram retrieval (CLIP alone was unreliable on drawn diagrams);
+- int8 embedding tables, a lazy CLIP vision tower and a build-time demo index, to keep memory headroom on 512 MB
+  with LangChain loaded;
+- tests went from 121 to 170.
+
+Open item: agent quality with a real Gemini key is measured only once `GEMINI_API_KEY` is configured on the
+deployment (`run_eval.py --base-url`).

@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 import numpy as np
 from PIL import Image
@@ -28,6 +29,30 @@ def _resolve(repo_or_dir: str, filename: str) -> str:
     from huggingface_hub import hf_hub_download
 
     return hf_hub_download(repo_or_dir, filename)
+
+
+def _model_path(repo_or_dir: str, filename: str) -> str:
+    """Path of the ONNX graph to load: the int8-embedding variant (see onnx_optimize) when enabled.
+
+    The variant is created at build time by scripts/download_models.py. If it is missing it is created on first
+    load (needs the `onnx` package and transiently ~3x the model size in RAM), else the original graph is used.
+    """
+    original = _resolve(repo_or_dir, filename)
+    if os.getenv("DRIVEDOCS_ONNX_INT8_EMBEDDINGS", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return original
+    from drivedocs.onnx_optimize import optimized_path, quantize_embedding_tables
+
+    candidate = optimized_path(original)
+    if candidate.exists():
+        return str(candidate)
+    try:
+        path, _ = quantize_embedding_tables(original, candidate)
+        return str(path)
+    except Exception as exc:  # pragma: no cover - onnx missing or read-only cache
+        import logging
+
+        logging.getLogger("drivedocs.onnx").warning("Embedding quantization skipped for %s: %s", filename, exc)
+        return original
 
 
 def _session(path: str):
@@ -65,7 +90,7 @@ class OnnxTextEncoder:
     """Sentence-Transformers-compatible encoder for BERT-style models with mean pooling."""
 
     def __init__(self, repo: str, model_file: str, max_length: int = 256) -> None:
-        self.session = _session(_resolve(repo, model_file))
+        self.session = _session(_model_path(repo, model_file))
         tokenizer_json = json.loads(Path(_resolve(repo, "tokenizer.json")).read_text(encoding="utf-8"))
         pad = (tokenizer_json.get("padding") or {})
         self.tokenizer = _tokenizer(
@@ -108,14 +133,49 @@ def clip_preprocess(img: Image.Image, size: int = 224) -> np.ndarray:
 
 
 class OnnxClipEncoder:
-    """CLIP text and image towers (projected, 512-d) run with ONNX Runtime."""
+    """CLIP text and image towers (projected, 512-d) run with ONNX Runtime.
 
-    def __init__(self, repo: str, text_file: str, vision_file: str) -> None:
-        self.text_session = _session(_resolve(repo, text_file))
-        self.vision_session = _session(_resolve(repo, vision_file))
+    The text tower is loaded eagerly (every chat searches diagrams by text). The vision tower is only needed to embed
+    new images (uploads, image-to-image queries; the demo corpus index is built at build time), so it is loaded on
+    first use and released after `idle_unload_seconds` without use (0 = keep loaded).
+    """
+
+    def __init__(self, repo: str, text_file: str, vision_file: str, idle_unload_seconds: Optional[float] = None) -> None:
+        self.repo = repo
+        self.vision_file = vision_file
+        self.text_session = _session(_model_path(repo, text_file))
+        # Resolve now so a missing file fails at start-up, not on the first upload.
+        self.vision_path = _model_path(repo, vision_file)
+        self._vision = None
+        self._vision_lock = threading.Lock()
+        self._unload_timer: Optional[threading.Timer] = None
+        if idle_unload_seconds is None:
+            idle_unload_seconds = float(os.getenv("DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS", "300") or 0)
+        self.idle_unload_seconds = idle_unload_seconds
         # CLIP pads with <|endoftext|>; the model pools at the first end-of-text token, so padding is harmless.
         self.tokenizer = _tokenizer(_resolve(repo, "tokenizer.json"), 77, 49407, "<|endoftext|>")
         self.text_inputs = {i.name for i in self.text_session.get_inputs()}
+
+    @property
+    def vision_loaded(self) -> bool:
+        return self._vision is not None
+
+    def _vision_session(self):
+        with self._vision_lock:
+            if self._vision is None:
+                self._vision = _session(self.vision_path)
+            if self.idle_unload_seconds > 0:
+                if self._unload_timer is not None:
+                    self._unload_timer.cancel()
+                self._unload_timer = threading.Timer(self.idle_unload_seconds, self.unload_vision)
+                self._unload_timer.daemon = True
+                self._unload_timer.start()
+            return self._vision
+
+    def unload_vision(self) -> None:
+        with self._vision_lock:
+            self._vision = None
+            self._unload_timer = None
 
     def encode_text(self, texts: Sequence[str]) -> np.ndarray:
         enc = self.tokenizer.encode_batch(list(texts))
@@ -126,4 +186,5 @@ class OnnxClipEncoder:
 
     def encode_images(self, images: Sequence[Image.Image]) -> np.ndarray:
         pixels = np.stack([clip_preprocess(img) for img in images]).astype(np.float32)
-        return _l2_normalize(self.vision_session.run(["image_embeds"], {"pixel_values": pixels})[0])
+        session = self._vision_session()
+        return _l2_normalize(session.run(["image_embeds"], {"pixel_values": pixels})[0])

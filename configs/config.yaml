@@ -1,6 +1,6 @@
 app:
   name: "DriveDocs"
-  version: "0.2.0"
+  version: "0.3.0"
   description: "AI document intelligence platform (multimodal RAG over text and diagrams)"
   host: "0.0.0.0"
   port: 8000
@@ -83,21 +83,31 @@ retrieval:
   default_top_k_images: 2
   # Thresholds are per modality because MiniLM and CLIP cosine scores are not comparable.
   # Calibrated on the bundled sample corpus (see docs/RAG_DESIGN.md); recalibrate for your own documents.
-  text_min_score: 0.30                # gate: at least one passage must reach this to answer at all
+  text_min_score: 0.27                # gate: at least one passage must reach this to answer at all
   text_context_min_score: 0.20        # once the gate passes, passages above this may contribute sentences
   image_min_score: 0.30               # image accepted on its own
-  image_min_score_visual_query: 0.25  # image accepted when the query asks for a diagram/chart/figure
+  image_min_score_visual_query: 0.27  # ... or when the query asks for a visual and the caption is not unrelated
   image_min_score_colocated: 0.25     # image accepted when on the same document page as accepted text evidence
+  # Caption-augmented image retrieval: MiniLM similarity between the request and the image caption (PDF figure
+  # caption or file name), after removing generic words such as 'show' and 'diagram'.
+  image_caption_min_score: 0.40       # visual request + matching caption
+  image_caption_floor: 0.30           # minimum caption similarity for the CLIP-only visual-request rule
   # Weighted Reciprocal Rank Fusion for the hybrid evidence list (rank-based; raw scores are never mixed)
   text_weight: 0.7
   image_weight: 0.3
   rrf_k: 60
 
 generation:
-  provider: "extractive" # Options: extractive, gemini, openai
-  gemini_model: "gemini-1.5-flash"
+  # agent:      LangChain tool-calling agent on Google Gemini (needs GEMINI_API_KEY); falls back to extractive
+  # extractive: quote the best retrieved sentences (no API key, offline)
+  # gemini / openai: single-shot grounded prompt (needs the matching API key)
+  provider: "agent"
+  gemini_model: "gemini-3.5-flash-lite"
   openai_model: "gpt-4o-mini"
-  temperature: 0.2
-  max_tokens: 512
+  temperature: 0.1
+  max_tokens: 700
   timeout_seconds: 30
   max_answer_sentences: 3
+  agent_max_steps: 4
+  # Mask e-mail addresses, phone numbers, SSNs, card numbers, VINs and labelled names in every output and LLM prompt
+  pii_redaction: true
