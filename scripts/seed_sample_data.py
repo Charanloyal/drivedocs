@@ -1,8 +1,12 @@
-"""Generate synthetic sample documents and evaluation benchmark dataset."""
+"""Regenerate the synthetic sample documents in data/sample/ (development only; requires reportlab).
+
+The generated files are committed, so this script is not needed to run or deploy DriveDocs. The evaluation set
+(data/sample/evaluation_set.json) is maintained by hand and is not touched by this script. Regenerating the PDF
+changes its bytes and therefore its document ID.
+"""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from reportlab.lib.pagesizes import letter
@@ -207,99 +211,9 @@ A cluster consisting of N nodes requires a minimum quorum of floor(N/2) + 1 acti
     return txt_path
 
 
-def create_evaluation_dataset(out_path: Path) -> Path:
-    """Create comprehensive ground-truth evaluation benchmark dataset."""
-    eval_data = [
-        {
-            "id": "q1_waveguide_loss",
-            "query": "What is the optical transmission loss of the silicon nitride waveguide bus?",
-            "relevant_filenames": ["quantum_photonics_spec.pdf"],
-            "relevant_pages": [1],
-            "relevant_image_ids": [],
-            "expected_facts": ["0.12 dB/cm", "silicon nitride", "waveguide"],
-            "is_unsupported": False,
-            "notes": "Tests multi-page PDF text extraction on Page 1."
-        },
-        {
-            "id": "q2_detector_efficiency",
-            "query": "What is the peak quantum efficiency of the SNSPD single-photon detector and at what wavelength?",
-            "relevant_filenames": ["quantum_photonics_spec.pdf"],
-            "relevant_pages": [2],
-            "relevant_image_ids": [],
-            "expected_facts": ["98.4%", "1550 nm"],
-            "is_unsupported": False,
-            "notes": "Tests multi-page PDF text extraction and page attribution on Page 2."
-        },
-        {
-            "id": "q3_agent_rate_limit",
-            "query": "What is the maximum API throughput rate limit for agent workers?",
-            "relevant_filenames": ["agent_safety_protocol.md"],
-            "relevant_pages": [1],
-            "relevant_image_ids": [],
-            "expected_facts": ["120 calls per minute", "throughput"],
-            "is_unsupported": False,
-            "notes": "Tests Markdown document extraction and precision."
-        },
-        {
-            "id": "q4_raft_heartbeat",
-            "query": "What is the periodic heartbeat interval dispatched by the Raft leader?",
-            "relevant_filenames": ["distributed_systems_notes.txt"],
-            "relevant_pages": [1],
-            "relevant_image_ids": [],
-            "expected_facts": ["150 milliseconds", "heartbeat"],
-            "is_unsupported": False,
-            "notes": "Tests TXT document extraction and parameter retrieval."
-        },
-        {
-            "id": "q5_visual_architecture",
-            "query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.",
-            "relevant_filenames": ["architecture_diagram.png"],
-            "relevant_pages": [1],
-            "relevant_image_ids": ["img_doc_architecture"],
-            "expected_facts": ["architecture", "visual"],
-            "is_unsupported": False,
-            "notes": "Tests CLIP text-to-image retrieval for technical architecture diagrams."
-        },
-        {
-            "id": "q6_visual_efficiency_curve",
-            "query": "Show the calibrated quantum efficiency curve versus wavelength chart.",
-            "relevant_filenames": ["quantum_photonics_spec.pdf"],
-            "relevant_pages": [2],
-            "relevant_image_ids": [],
-            "expected_facts": ["chart", "quantum efficiency"],
-            "is_unsupported": False,
-            "notes": "Tests embedded PDF image extraction and multimodal visual retrieval."
-        },
-        {
-            "id": "q7_unsupported_apple_stock",
-            "query": "What was the stock price of Apple Computer Inc on January 15, 1999?",
-            "relevant_filenames": [],
-            "relevant_pages": [],
-            "relevant_image_ids": [],
-            "expected_facts": [],
-            "is_unsupported": True,
-            "notes": "Negative test query: out-of-corpus query that must trigger insufficient evidence fallback."
-        },
-        {
-            "id": "q8_unsupported_baking_recipe",
-            "query": "What is the traditional culinary recipe and oven temperature for baking chocolate chip cookies?",
-            "relevant_filenames": [],
-            "relevant_pages": [],
-            "relevant_image_ids": [],
-            "expected_facts": [],
-            "is_unsupported": True,
-            "notes": "Negative test query: unsupported domain topic that must not hallucinate or fabricate citations."
-        }
-    ]
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(eval_data, f, indent=2)
-    return out_path
-
 
 def main():
-    print("[*] Generating synthetic sample files and benchmark dataset...")
+    print("[*] Generating synthetic sample files...")
     SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
 
     arch_img = SAMPLE_DIR / "architecture_diagram.png"
@@ -322,11 +236,7 @@ def main():
     create_txt_doc(txt_doc)
     print(f" [+] Created: {txt_doc.name}")
 
-    eval_json = SAMPLE_DIR / "evaluation_set.json"
-    create_evaluation_dataset(eval_json)
-    print(f" [+] Created: {eval_json.name}")
-
-    print("[*] All sample assets and benchmark datasets seeded successfully.")
+    print("[*] Sample documents regenerated. data/sample/evaluation_set.json was not modified.")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+* text=auto
+# Never apply line-ending conversion to binary assets (CRLF conversion corrupts PDF xref offsets).
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.faiss binary

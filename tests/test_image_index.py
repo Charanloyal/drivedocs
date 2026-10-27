@@ -1,11 +1,18 @@
 """Unit tests for ImageFAISSIndex and multimodal CLIP retrieval."""
 
+import os
 from pathlib import Path
 from PIL import Image
 import pytest
 
 from drivedocs.image_index import CLIPEmbeddingModel, ImageFAISSIndex
 from drivedocs.schemas import ImageItem
+
+pytestmark = pytest.mark.real_models
+
+
+def real_index() -> ImageFAISSIndex:
+    return ImageFAISSIndex(embedding_model=CLIPEmbeddingModel(backend=os.environ["DRIVEDOCS_TEST_REAL_BACKEND"]), enabled=True)
 
 
 @pytest.fixture
@@ -44,8 +51,7 @@ def sample_images(tmp_path):
 
 
 def test_clip_image_and_text_search(sample_images):
-    # Tests real CLIP model (already cached in virtualenv)
-    index = ImageFAISSIndex()
+    index = real_index()
     assert index.count() == 0
 
     added = index.add_images(sample_images)
@@ -64,7 +70,7 @@ def test_clip_image_and_text_search(sample_images):
 
 
 def test_image_to_image_search(sample_images, tmp_path):
-    index = ImageFAISSIndex()
+    index = real_index()
     index.add_images(sample_images)
 
     # Query image: similar to blue box
@@ -77,7 +83,7 @@ def test_image_to_image_search(sample_images, tmp_path):
 
 
 def test_image_index_persistence(sample_images, tmp_path):
-    index = ImageFAISSIndex()
+    index = real_index()
     index.add_images(sample_images)
 
     save_dir = tmp_path / "faiss_images"
@@ -86,7 +92,7 @@ def test_image_index_persistence(sample_images, tmp_path):
     assert (save_dir / "image_index.faiss").exists()
     assert (save_dir / "image_metadata.json").exists()
 
-    new_index = ImageFAISSIndex()
+    new_index = real_index()
     loaded = new_index.load(save_dir)
     assert loaded is True
     assert new_index.count() == 2

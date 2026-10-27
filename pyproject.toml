@@ -4,26 +4,28 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drivedocs"
-version = "0.1.0"
-description = "Multimodal Retrieval-Augmented Generation assistant for documents and images"
+version = "0.2.0"
+description = "DriveDocs AI: document intelligence with multimodal retrieval (MiniLM text + CLIP images) and verified citations"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 authors = [
     { name = "Charanloyal", email = "charankumarreddy2028@gmail.com" }
 ]
+# Compatible ranges for library use; requirements.txt pins the exact versions verified for deployment.
 dependencies = [
-    "torch>=2.2.0",
-    "transformers>=4.40.0",
-    "sentence-transformers>=3.0.0",
+    "onnxruntime>=1.17.0",
+    "tokenizers>=0.15.0",
+    "huggingface-hub>=0.23.0",
     "faiss-cpu>=1.8.0",
+    "numpy>=1.26.0",
     "pillow>=10.0.0",
-    "langchain>=0.2.0",
     "pypdf>=4.2.0",
-    "reportlab>=4.0.0",
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "python-multipart>=0.0.9",
     "pydantic>=2.7.0",
+    "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
 ]
@@ -31,8 +33,27 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "httpx>=0.27.0",
+    "reportlab>=4.0.0",
+    "psutil>=5.9.0",
 ]
+# Full-precision PyTorch backend (DRIVEDOCS_EMBEDDING_BACKEND=transformers).
+torch = [
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+]
+# Only for text models the built-in encoders do not support (e.g. models with Dense layers).
+sentence-transformers = [
+    "sentence-transformers>=3.0.0",
+]
+
+[project.urls]
+Repository = "https://github.com/Charanloyal/drivedocs"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+drivedocs = ["web/*.html", "web/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -40,3 +61,6 @@ pythonpath = ["src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --strict-markers"
+markers = [
+    "real_models: uses the real MiniLM/CLIP weights; skipped unless they are in the local Hugging Face cache",
+]

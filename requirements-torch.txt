@@ -1,0 +1,7 @@
+# Optional PyTorch backend (DRIVEDOCS_EMBEDDING_BACKEND=transformers): full-precision MiniLM + CLIP, ~1 GB RAM.
+# The CPU-only index avoids multi-GB CUDA wheels.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements.txt
+torch==2.14.1+cpu
+transformers==5.20.2
+safetensors==0.8.0

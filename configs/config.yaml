@@ -1,19 +1,30 @@
 app:
   name: "DriveDocs"
-  version: "0.1.0"
-  description: "Multimodal Retrieval-Augmented Generation (RAG) Assistant"
+  version: "0.2.0"
+  description: "AI document intelligence platform (multimodal RAG over text and diagrams)"
   host: "0.0.0.0"
   port: 8000
   debug: false
 
 hardware:
-  device: "cpu" # Auto-detected as cpu or cuda
+  # "cpu" (default) or "cuda". CUDA is only used when explicitly requested AND available.
+  device: "cpu"
 
 storage:
+  # Root directory for everything DriveDocs writes. images/, indexes/, uploads/ and documents.json live under it.
+  # Override with DRIVEDOCS_STORAGE_DIR (e.g. a Render persistent disk mount path).
   base_dir: "data/storage"
-  images_dir: "data/storage/images"
-  indexes_dir: "data/storage/indexes"
-  max_upload_size_bytes: 15728640 # 15 MB
+  # Set to true (or DRIVEDOCS_PERSISTENT_STORAGE=true) only when base_dir is on durable storage.
+  persistent: false
+  # Keep a private copy of each original upload (never served publicly) so indexes can be rebuilt.
+  keep_original_uploads: true
+  max_upload_size_bytes: 15728640 # 15 MB (override with DRIVEDOCS_MAX_UPLOAD_MB)
+  max_documents: 500
+  max_pdf_pages: 300
+  max_images_per_document: 50
+  max_image_pixels: 40000000 # decompression-bomb guard
+  max_stored_image_side: 1600
+  min_extracted_image_side: 40
   allowed_extensions:
     - ".pdf"
     - ".txt"
@@ -33,23 +44,54 @@ chunking:
     - ""
 
 embeddings:
+  # "onnx" (default): ONNX Runtime, no PyTorch. all-MiniLM-L6-v2 (fp32, identical to PyTorch) + CLIP ViT-B/32 with
+  #                   4-bit weights. ~270 MB of model files; measured peak ~450 MB RSS with image search enabled.
+  # "transformers":   full-precision PyTorch models (pip install torch transformers); ~1 GB RAM.
+  # "mock":           deterministic hashing embeddings for tests only.
+  # Variant choice (quality vs. memory vs. speed) is measured in docs/RAG_DESIGN.md §9.
+  backend: "onnx"
   text:
-    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"   # transformers backend
+    onnx_repo: "Xenova/all-MiniLM-L6-v2"                   # onnx backend (same model, exported to ONNX)
+    onnx_file: "onnx/model.onnx"                           # fp32; onnx/model_quantized.onnx (int8) saves ~65 MB
+    max_length: 256
     dimension: 384
     batch_size: 32
     normalize: true
+    # transformers backend only: "native" runs the model with plain transformers (same vectors, less RAM than
+    # importing sentence-transformers); "sentence-transformers" uses that library.
+    encoder: "native"
   image:
-    model_name: "openai/clip-vit-base-patch32"
+    # Disable to save memory with DRIVEDOCS_ENABLE_IMAGE_SEARCH=false
+    enabled: true
+    model_name: "openai/clip-vit-base-patch32"             # transformers backend
+    onnx_repo: "Xenova/clip-vit-base-patch32"              # onnx backend
+    onnx_text_file: "onnx/text_model_q4.onnx"              # 4-bit text tower
+    onnx_vision_file: "onnx/vision_model_q4.onnx"          # 4-bit vision tower
     dimension: 512
     batch_size: 16
     normalize: true
 
+runtime:
+  preload_models: true
+  seed_sample_data: true
+  max_concurrent_inference: 2
+  ready_wait_seconds: 60
+
 retrieval:
   default_top_k_text: 4
   default_top_k_images: 2
-  min_similarity_threshold: 0.25
+  # Thresholds are per modality because MiniLM and CLIP cosine scores are not comparable.
+  # Calibrated on the bundled sample corpus (see docs/RAG_DESIGN.md); recalibrate for your own documents.
+  text_min_score: 0.30                # gate: at least one passage must reach this to answer at all
+  text_context_min_score: 0.20        # once the gate passes, passages above this may contribute sentences
+  image_min_score: 0.30               # image accepted on its own
+  image_min_score_visual_query: 0.25  # image accepted when the query asks for a diagram/chart/figure
+  image_min_score_colocated: 0.25     # image accepted when on the same document page as accepted text evidence
+  # Weighted Reciprocal Rank Fusion for the hybrid evidence list (rank-based; raw scores are never mixed)
   text_weight: 0.7
   image_weight: 0.3
+  rrf_k: 60
 
 generation:
   provider: "extractive" # Options: extractive, gemini, openai
@@ -57,3 +99,5 @@ generation:
   openai_model: "gpt-4o-mini"
   temperature: 0.2
   max_tokens: 512
+  timeout_seconds: 30
+  max_answer_sentences: 3

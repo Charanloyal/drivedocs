@@ -1,28 +1,80 @@
-# Render Cloud Deployment Blueprint
-# Docs: https://render.com/docs/blueprint-spec
-
+# Render Blueprint for DriveDocs AI. Docs: https://render.com/docs/blueprint-spec
+#
+# One free web service runs the FastAPI app, which also serves the web UI. No database or other services are needed.
+#
+# Sizing (measured locally, see docs/DEPLOYMENT.md §2): embeddings run on ONNX Runtime (no PyTorch). With MiniLM +
+# CLIP and the sample corpus the process peaked at ~0.45 GB, which fits the 512 MB Free instance. If you add many
+# large documents, switch `plan` to `starter` or `standard`, or set DRIVEDOCS_ENABLE_IMAGE_SEARCH=false (~0.25 GB).
+#
+# Free-plan behaviour: the service sleeps after 15 minutes without traffic and takes ~1 minute to wake up.
+# Storage is ephemeral: uploads are lost on restart/redeploy/sleep; the bundled sample documents are re-indexed on
+# every boot and the UI says so. Persistent disks require a paid plan (see the bottom of this file).
 services:
   - type: web
     name: drivedocs
     runtime: python
-    region: oregon
     plan: free
-    autoDeploy: true
-    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt && pip install -e . && python scripts/seed_sample_data.py"
-    startCommand: "uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT"
+    region: oregon
+    branch: main
+    buildCommand: >-
+      pip install --upgrade pip &&
+      pip install -r requirements.txt &&
+      pip install --no-deps -e . &&
+      HF_HUB_OFFLINE=0 python scripts/download_models.py
+    # Single worker: every worker would load its own copy of the models. No --reload in production.
+    startCommand: uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
+    # /health never loads models: 200 while starting/ready, 503 only if start-up failed (so a broken deploy fails).
     healthCheckPath: /health
     envVars:
+      # The version the test suite, evaluation and smoke test were run on.
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.14.7
       - key: DEVICE
         value: cpu
       - key: LLM_PROVIDER
         value: extractive
-      - key: PYTHONPATH
-        value: src
+      # Optional secrets: Render asks for these when the Blueprint is applied. Leave empty for the keyless
+      # extractive answerer; never put real values in this file.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      # Models (~270 MB of ONNX files) are downloaded during the build into the project directory, which Render keeps
+      # for runtime. Render also applies these variables to the build, so the build command overrides HF_HUB_OFFLINE.
+      - key: HF_HOME
+        value: /opt/render/project/src/.hf-cache
+      - key: HF_HUB_OFFLINE
+        value: "1"
+      - key: HF_HUB_DISABLE_TELEMETRY
+        value: "1"
+      - key: DRIVEDOCS_EMBEDDING_BACKEND
+        value: onnx
+      - key: DRIVEDOCS_ENABLE_IMAGE_SEARCH
+        value: "true"
+      - key: DRIVEDOCS_SEED_SAMPLE_DATA
+        value: "true"
+      - key: DRIVEDOCS_STORAGE_DIR
+        value: /opt/render/project/src/data/storage
+      - key: DRIVEDOCS_PERSISTENT_STORAGE
+        value: "false"
+      - key: DRIVEDOCS_MAX_UPLOAD_MB
+        value: "10"
+      - key: DRIVEDOCS_MAX_DOCUMENTS
+        value: "100"
+      # Small shared CPU: avoid oversubscribing threads; limit glibc malloc arenas to keep RSS low.
+      - key: DRIVEDOCS_ONNX_THREADS
+        value: "2"
+      - key: DRIVEDOCS_MAX_CONCURRENT_INFERENCE
+        value: "1"
       - key: OMP_NUM_THREADS
         value: "1"
-      - key: MKL_NUM_THREADS
-        value: "1"
-      - key: HF_HUB_DISABLE_SYMLINKS_WARNING
-        value: "1"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: TOKENIZERS_PARALLELISM
+        value: "false"
+    # Persistent storage (paid plans only). Change `plan` to a paid plan, uncomment, then set
+    # DRIVEDOCS_STORAGE_DIR=/var/data/drivedocs and DRIVEDOCS_PERSISTENT_STORAGE=true above.
+    # disk:
+    #   name: drivedocs-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

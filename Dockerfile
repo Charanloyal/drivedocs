@@ -1,46 +1,48 @@
-# Multi-stage / lightweight CPU container for DriveDocs
-FROM python:3.11-slim
+# CPU-only container for DriveDocs AI (FastAPI API + web UI in one process).
+FROM python:3.14-slim
 
-# Prevent Python from writing .pyc files & enable unbuffered stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DEVICE=cpu \
-    HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    PORT=8000 \
+    HF_HOME=/app/.hf-cache \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    TOKENIZERS_PARALLELISM=false \
+    DRIVEDOCS_HOME=/app \
+    DRIVEDOCS_STORAGE_DIR=/data/drivedocs
 
-# Install system dependencies (build essentials, curl for health check)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m -u 1000 appuser
-
+RUN useradd --create-home --uid 1000 appuser
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt pyproject.toml ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Dependencies first for better layer caching (ONNX Runtime; no PyTorch).
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
-# Copy source code and configurations
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+RUN pip install --no-deps -e .
+
 COPY configs/ ./configs/
 COPY data/sample/ ./data/sample/
-COPY src/ ./src/
-COPY README.md ./
+COPY reports/ ./reports/
+COPY scripts/download_models.py ./scripts/
 
-# Install project package in editable mode
-RUN pip install --no-cache-dir -e .
-
-# Create storage directory structure and assign ownership to appuser
-RUN mkdir -p data/storage/images data/storage/indexes data/storage/uploads && \
-    chown -R appuser:appuser /app
+# Bake the models into the image so containers never download them at start-up.
+# Build with --build-arg ENABLE_IMAGE_SEARCH=false for a text-only image (~0.25 GB RSS at runtime).
+ARG ENABLE_IMAGE_SEARCH=true
+ENV DRIVEDOCS_ENABLE_IMAGE_SEARCH=${ENABLE_IMAGE_SEARCH}
+RUN python scripts/download_models.py \
+    && mkdir -p /data/drivedocs \
+    && chown -R appuser:appuser /data /app/.hf-cache
+ENV HF_HUB_OFFLINE=1
 
 USER appuser
-
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT', '8000'), timeout=4)" || exit 1
 
-CMD ["uvicorn", "drivedocs.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Single worker: each worker would load its own copy of the models. PORT is provided by Render (default 10000).
+CMD ["sh", "-c", "exec uvicorn drivedocs.api:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --timeout-keep-alive 30"]

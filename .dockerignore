@@ -1,27 +1,34 @@
+# Version control, environments, caches
 .git
 .gitignore
+.gitattributes
 .venv
-env/
 venv/
+env/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 .pytest_cache/
 .coverage
 htmlcov/
-data/storage/images/*
-!data/storage/images/.gitkeep
-data/storage/indexes/*
-!data/storage/indexes/.gitkeep
-data/storage/uploads/*
-!data/storage/uploads/.gitkeep
-*.faiss
 .cache/
+.hf-cache/
 hf_cache/
 transformers_cache/
+build/
+dist/
+*.egg-info/
+
+# Secrets and local configuration
 .env
-*.md
-!README.md
+.env.*
+!.env.example
+
+# Runtime data (never bake user documents or indexes into an image)
+data/storage/
+
+# Not needed at runtime
+tests/
+docs/
 .vscode/
 .idea/
+.github/

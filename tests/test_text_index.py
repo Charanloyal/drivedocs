@@ -1,9 +1,16 @@
-"""Unit tests for TextFAISSIndex and semantic text retrieval."""
+"""Unit tests for TextFAISSIndex and semantic text retrieval (real MiniLM weights)."""
 
+import os
 import numpy as np
 import pytest
 from drivedocs.schemas import TextChunk
 from drivedocs.text_index import TextEmbeddingModel, TextFAISSIndex
+
+pytestmark = pytest.mark.real_models
+
+
+def real_index() -> TextFAISSIndex:
+    return TextFAISSIndex(embedding_model=TextEmbeddingModel(backend=os.environ["DRIVEDOCS_TEST_REAL_BACKEND"]))
 
 
 @pytest.fixture
@@ -41,7 +48,7 @@ def sample_chunks():
 
 def test_text_index_insertion_and_search(sample_chunks):
     # Using real SentenceTransformer model (already cached in virtual environment)
-    index = TextFAISSIndex()
+    index = real_index()
     assert index.count() == 0
 
     added = index.add_chunks(sample_chunks)
@@ -60,7 +67,7 @@ def test_text_index_insertion_and_search(sample_chunks):
 
 
 def test_text_index_persistence(sample_chunks, tmp_path):
-    index = TextFAISSIndex()
+    index = real_index()
     index.add_chunks(sample_chunks)
 
     save_dir = tmp_path / "faiss_text"
@@ -69,7 +76,7 @@ def test_text_index_persistence(sample_chunks, tmp_path):
     assert (save_dir / "text_index.faiss").exists()
     assert (save_dir / "text_metadata.json").exists()
 
-    new_index = TextFAISSIndex()
+    new_index = real_index()
     loaded = new_index.load(save_dir)
     assert loaded is True
     assert new_index.count() == 3
@@ -80,7 +87,7 @@ def test_text_index_persistence(sample_chunks, tmp_path):
 
 
 def test_text_index_empty_query(sample_chunks):
-    index = TextFAISSIndex()
+    index = real_index()
     index.add_chunks(sample_chunks)
     assert index.search("", top_k=3) == []
     assert index.search("   ", top_k=3) == []

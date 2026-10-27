@@ -2,126 +2,149 @@
   {
     "id": "q1_waveguide_loss",
     "query": "What is the optical transmission loss of the silicon nitride waveguide bus?",
-    "relevant_filenames": [
-      "quantum_photonics_spec.pdf"
-    ],
-    "relevant_pages": [
-      1
-    ],
-    "relevant_image_ids": [],
-    "expected_facts": [
-      "0.12 dB/cm",
-      "silicon nitride",
-      "waveguide"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests multi-page PDF text extraction on Page 1."
+    "modality": "text",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [1],
+    "expected_facts": ["0.12 dB/cm"],
+    "notes": "PDF text extraction on page 1."
   },
   {
     "id": "q2_detector_efficiency",
     "query": "What is the peak quantum efficiency of the SNSPD single-photon detector and at what wavelength?",
-    "relevant_filenames": [
-      "quantum_photonics_spec.pdf"
-    ],
-    "relevant_pages": [
-      2
-    ],
-    "relevant_image_ids": [],
-    "expected_facts": [
-      "98.4%",
-      "1550 nm"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests multi-page PDF text extraction and page attribution on Page 2."
+    "modality": "text",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [2],
+    "expected_facts": ["98.4%", "1550 nm"],
+    "notes": "Page attribution on page 2."
   },
   {
     "id": "q3_agent_rate_limit",
     "query": "What is the maximum API throughput rate limit for agent workers?",
-    "relevant_filenames": [
-      "agent_safety_protocol.md"
-    ],
-    "relevant_pages": [
-      1
-    ],
-    "relevant_image_ids": [],
-    "expected_facts": [
-      "120 calls per minute",
-      "throughput"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests Markdown document extraction and precision."
+    "modality": "text",
+    "relevant_filenames": ["agent_safety_protocol.md"],
+    "relevant_pages": [1],
+    "expected_facts": ["120 calls per minute"],
+    "notes": "Markdown section retrieval."
   },
   {
     "id": "q4_raft_heartbeat",
     "query": "What is the periodic heartbeat interval dispatched by the Raft leader?",
-    "relevant_filenames": [
-      "distributed_systems_notes.txt"
-    ],
-    "relevant_pages": [
-      1
-    ],
-    "relevant_image_ids": [],
-    "expected_facts": [
-      "150 milliseconds",
-      "heartbeat"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests TXT document extraction and parameter retrieval."
+    "modality": "text",
+    "relevant_filenames": ["distributed_systems_notes.txt"],
+    "relevant_pages": [1],
+    "expected_facts": ["150 milliseconds"],
+    "notes": "Plain-text retrieval."
   },
   {
     "id": "q5_visual_architecture",
     "query": "Find the architecture diagram showing Content Parser, Vector Store, and Grounded QA.",
-    "relevant_filenames": [
-      "architecture_diagram.png"
-    ],
-    "relevant_pages": [
-      1
-    ],
-    "relevant_image_ids": [
-      "img_doc_architecture"
-    ],
-    "expected_facts": [
-      "architecture",
-      "visual"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests CLIP text-to-image retrieval for technical architecture diagrams."
+    "modality": "image",
+    "relevant_filenames": ["architecture_diagram.png"],
+    "relevant_pages": [1],
+    "notes": "CLIP text-to-image retrieval of a standalone diagram."
   },
   {
     "id": "q6_visual_efficiency_curve",
     "query": "Show the calibrated quantum efficiency curve versus wavelength chart.",
-    "relevant_filenames": [
-      "quantum_photonics_spec.pdf"
-    ],
-    "relevant_pages": [
-      2
-    ],
-    "relevant_image_ids": [],
-    "expected_facts": [
-      "chart",
-      "quantum efficiency"
-    ],
-    "is_unsupported": false,
-    "notes": "Tests embedded PDF image extraction and multimodal visual retrieval."
+    "modality": "image",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [2],
+    "notes": "CLIP retrieval of an image extracted from page 2 of a PDF."
   },
   {
     "id": "q7_unsupported_apple_stock",
     "query": "What was the stock price of Apple Computer Inc on January 15, 1999?",
-    "relevant_filenames": [],
-    "relevant_pages": [],
-    "relevant_image_ids": [],
-    "expected_facts": [],
     "is_unsupported": true,
-    "notes": "Negative test query: out-of-corpus query that must trigger insufficient evidence fallback."
+    "notes": "Out-of-corpus question."
   },
   {
     "id": "q8_unsupported_baking_recipe",
     "query": "What is the traditional culinary recipe and oven temperature for baking chocolate chip cookies?",
-    "relevant_filenames": [],
-    "relevant_pages": [],
-    "relevant_image_ids": [],
-    "expected_facts": [],
     "is_unsupported": true,
-    "notes": "Negative test query: unsupported domain topic that must not hallucinate or fabricate citations."
+    "notes": "Out-of-corpus question."
+  },
+  {
+    "id": "q9_raft_election_timeout",
+    "query": "What range is the randomized election timeout configured to?",
+    "modality": "text",
+    "relevant_filenames": ["distributed_systems_notes.txt"],
+    "relevant_pages": [1],
+    "expected_facts": ["300 milliseconds", "600 milliseconds"]
+  },
+  {
+    "id": "q10_quorum_size",
+    "query": "How many nodes constitute a quorum in a 5-node cluster?",
+    "modality": "text",
+    "relevant_filenames": ["distributed_systems_notes.txt"],
+    "relevant_pages": [1],
+    "expected_facts": ["3 nodes"]
+  },
+  {
+    "id": "q11_human_approval",
+    "query": "Above what financial amount does an action require human supervisor approval?",
+    "modality": "text",
+    "relevant_filenames": ["agent_safety_protocol.md"],
+    "relevant_pages": [1],
+    "expected_facts": ["$500"]
+  },
+  {
+    "id": "q12_phase_shifter",
+    "query": "What is the switching rise time of the thermo-optic phase shifters?",
+    "modality": "text",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [1],
+    "expected_facts": ["1.4 microseconds"]
+  },
+  {
+    "id": "q13_cryostat_temperature",
+    "query": "What base temperature does the pulse-tube cryostat maintain?",
+    "modality": "text",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [2],
+    "expected_facts": ["0.85 Kelvin"]
+  },
+  {
+    "id": "q14_edge_coupler_loss",
+    "query": "What is the insertion loss per facet of the edge couplers?",
+    "modality": "text",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [1],
+    "expected_facts": ["0.8 dB"]
+  },
+  {
+    "id": "q15_audit_ledger",
+    "query": "How are audit trail records protected against tampering?",
+    "modality": "text",
+    "relevant_filenames": ["agent_safety_protocol.md"],
+    "relevant_pages": [1],
+    "expected_facts": ["SHA-256"]
+  },
+  {
+    "id": "q16_unsupported_world_cup",
+    "query": "Who won the 2018 FIFA World Cup final?",
+    "is_unsupported": true,
+    "notes": "Out-of-corpus question."
+  },
+  {
+    "id": "q17_hard_negative_paxos",
+    "query": "How does Paxos handle leader election?",
+    "is_unsupported": true,
+    "hard_negative": true,
+    "notes": "Near-domain: the corpus describes Raft leader election, not Paxos."
+  },
+  {
+    "id": "q18_hard_negative_lithium_niobate",
+    "query": "What is the insertion loss of the lithium niobate modulator?",
+    "is_unsupported": true,
+    "hard_negative": true,
+    "notes": "Near-domain: the corpus covers silicon nitride photonics, not lithium niobate."
+  },
+  {
+    "id": "q19_visual_detector_chart",
+    "query": "line chart of detector efficiency versus wavelength",
+    "modality": "image",
+    "relevant_filenames": ["quantum_photonics_spec.pdf"],
+    "relevant_pages": [2],
+    "notes": "Keyword-style visual query."
   }
 ]

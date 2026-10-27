@@ -1,87 +1,75 @@
-"""Script to run the full multimodal retrieval and groundedness evaluation."""
+"""Run the DriveDocs evaluation benchmark against the bundled sample corpus.
+
+Uses a temporary storage directory (never the application's data/storage) and the real embedding models configured
+in configs/config.yaml. Writes reports/evaluation_report.json and reports/EVALUATION.md.
+
+    python scripts/run_eval.py [--k 5] [--k-images 3] [--output-dir reports]
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
+import logging
+import sys
+import tempfile
 from pathlib import Path
-from drivedocs.config import settings
-from drivedocs.evaluation import DriveDocsEvaluator, EvaluationQuery
-from drivedocs.generation import GroundedMultimodalGenerator
-from drivedocs.ingestion import DocumentIngestionManager
-from drivedocs.retrieval import MultimodalRetriever
-from drivedocs.text_index import TextFAISSIndex
-from drivedocs.image_index import ImageFAISSIndex
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+
+from drivedocs.config import settings  # noqa: E402
+from drivedocs.evaluation import DriveDocsEvaluator, EvaluationQuery  # noqa: E402
+from drivedocs.generation import GroundedMultimodalGenerator  # noqa: E402
+from drivedocs.service import DriveDocsService  # noqa: E402
+from drivedocs.storage import LocalStorage  # noqa: E402
 
 
-def main():
-    print("=====================================================================")
-    print("           DRIVEDOCS MULTIMODAL RETRIEVAL & QA BENCHMARK             ")
-    print("=====================================================================")
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--k", type=int, default=5, help="top-K text results")
+    parser.add_argument("--k-images", type=int, default=3, help="top-K image results")
+    parser.add_argument("--dataset", type=Path, default=ROOT / "data" / "sample" / "evaluation_set.json")
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "reports")
+    parser.add_argument("--provider", default="extractive", help="generation provider to evaluate")
+    args = parser.parse_args()
 
-    sample_dir = Path("data/sample")
-    reports_dir = Path("reports")
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    if settings.embedding_backend == "mock":
+        print("Refusing to evaluate with the mock embedding backend; unset DRIVEDOCS_EMBEDDING_BACKEND.")
+        return 2
 
-    # 1. Initialize Components
-    print("\n[*] Initializing Vector Indexes and Models...")
-    text_index = TextFAISSIndex()
-    image_index = ImageFAISSIndex()
-    retriever = MultimodalRetriever(text_index=text_index, image_index=image_index)
-    ingestion_mgr = DocumentIngestionManager()
-    generator = GroundedMultimodalGenerator(provider="extractive")
+    with tempfile.TemporaryDirectory(prefix="drivedocs_eval_") as tmp:
+        settings.seed_sample_data = False
+        service = DriveDocsService(storage=LocalStorage(root=Path(tmp)))
+        service.initialize()
+        print(f"[*] Ingesting {len(settings.sample_files)} sample files...")
+        for name in settings.sample_files:
+            result = service.ingest(name, (settings.sample_dir / name).read_bytes(), source="sample")
+            doc = result.document
+            print(f"    {name}: {doc.chunk_count} chunks, {doc.image_count} images, {doc.page_count} page(s)")
 
-    # 2. Ingest Sample Documents
-    sample_files = [
-        sample_dir / "quantum_photonics_spec.pdf",
-        sample_dir / "agent_safety_protocol.md",
-        sample_dir / "distributed_systems_notes.txt",
-        sample_dir / "architecture_diagram.png",
-    ]
+        queries = [EvaluationQuery(**item) for item in json.loads(args.dataset.read_text(encoding="utf-8"))]
+        generator = GroundedMultimodalGenerator(provider=args.provider, verifier=service.verifier)
+        evaluator = DriveDocsEvaluator(service.retriever, generator, k=args.k, k_images=args.k_images)
+        print(f"[*] Running {len(queries)} queries...")
+        dataset = args.dataset.resolve()
+        dataset_label = dataset.relative_to(ROOT).as_posix() if dataset.is_relative_to(ROOT) else dataset.name
+        report = evaluator.run_benchmark(queries, dataset_path=dataset_label)
 
-    print("\n[*] Ingesting sample documents into DriveDocs...")
-    for file_path in sample_files:
-        if file_path.exists():
-            parsed = ingestion_mgr.ingest_file(file_path, allow_duplicates=True)
-            retriever.index_parsed_document(parsed)
-            print(f"  [+] Ingested '{file_path.name}': {len(parsed.chunks)} chunks, {len(parsed.images)} images")
-        else:
-            print(f"  [!] Missing file: {file_path}")
-
-    print(f"\n[*] Total Indexed Corpus: {text_index.count()} text chunks, {image_index.count()} visual items.")
-
-    # 3. Load Evaluation Set
-    eval_json_path = sample_dir / "evaluation_set.json"
-    with open(eval_json_path, "r", encoding="utf-8") as f:
-        raw_eval_data = json.load(f)
-
-    eval_queries = [EvaluationQuery(**item) for item in raw_eval_data]
-    print(f"[*] Loaded {len(eval_queries)} benchmark queries from {eval_json_path.name}.")
-
-    # 4. Run Benchmark
-    print("\n[*] Running evaluation queries...")
-    evaluator = DriveDocsEvaluator(retriever=retriever, generator=generator)
-    report = evaluator.run_benchmark(eval_queries)
-
-    # 5. Save Reports
-    json_out = reports_dir / "evaluation_report.json"
-    md_out = reports_dir / "EVALUATION.md"
+    json_out = args.output_dir / "evaluation_report.json"
+    md_out = args.output_dir / "EVALUATION.md"
     evaluator.write_reports(report, json_out, md_out)
 
-    # 6. Display Summary
-    print("\n=====================================================================")
-    print("                       BENCHMARK RESULTS                             ")
-    print("=====================================================================")
-    print(f" Total Benchmark Queries      : {report.total_queries}")
-    print(f" Retrieval Recall@5           : {report.mean_recall_at_5 * 100:.1f}%")
-    print(f" Mean Reciprocal Rank (MRR)   : {report.mean_mrr:.4f}")
-    print(f" Retrieval Precision@5        : {report.mean_precision_at_5 * 100:.1f}%")
-    print(f" Citation Correctness         : {report.mean_citation_correctness * 100:.1f}%")
-    print(f" Groundedness Score           : {report.mean_groundedness_score * 100:.1f}%")
-    print(f" Negative Query Handling      : {report.unsupported_detection_accuracy * 100:.1f}%")
-    print(f" Mean Query Latency           : {report.avg_latency_ms:.1f} ms")
-    print("=====================================================================")
-    print(f"[+] Output written to: {json_out} and {md_out}")
+    print("\n=========================== RESULTS ===========================")
+    for key, value in report.summary.items():
+        print(f"  {key:32s} {value}")
+    for key, value in report.comparison.items():
+        print(f"  {key:32s} {value}")
+    print(f"  {'failing queries':32s} {[r.query_id for r in report.query_results if not r.passed]}")
+    print(f"[+] Wrote {json_out.relative_to(ROOT)} and {md_out.relative_to(ROOT)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,26 +1,29 @@
-# Core Deep Learning & NLP
-torch>=2.2.0
-transformers>=4.40.0
-sentence-transformers>=3.0.0
-faiss-cpu>=1.8.0
-pillow>=10.0.0
+# Runtime dependencies for DriveDocs AI, pinned to the versions verified by the test suite, evaluation and smoke
+# test (Python 3.14). Update deliberately and re-run `pytest` and `python scripts/smoke_test.py`.
+#
+# Embeddings run on ONNX Runtime: no PyTorch, ~1 GB less RAM and a much smaller build than the PyTorch stack, so
+# the full text + image demo fits a 512 MB instance. For the optional full-precision PyTorch backend install
+# requirements-torch.txt and set DRIVEDOCS_EMBEDDING_BACKEND=transformers.
 
-# Document Processing & RAG Framework
-langchain>=0.2.0
-langchain-core>=0.2.0
-pypdf>=4.2.0
-reportlab>=4.0.0
+# Embeddings & vector search
+onnxruntime==1.31.0
+tokenizers==0.23.3
+huggingface-hub==2.3.0
+faiss-cpu==1.15.1
+numpy==2.5.4
+pillow==13.0.0
 
-# Web API & Server
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9
-pydantic>=2.7.0
+# Document parsing
+pypdf==6.21.2
 
-# Configuration & Utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.1
+# Web API
+fastapi==0.162.0
+starlette==1.10.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pydantic==2.14.1
+httpx==0.28.1
 
-# Testing & QA
-pytest>=8.0.0
-httpx>=0.27.0
+# Configuration
+python-dotenv==1.2.4
+PyYAML==6.0.3

@@ -1,0 +1,129 @@
+"""ONNX Runtime embedding encoders: the default, low-memory backend (no PyTorch needed).
+
+* Text:  all-MiniLM-L6-v2 exported to ONNX (int8-quantized by default): tokens → mean pooling → L2 normalization,
+  the same computation as Sentence-Transformers.
+* Images/CLIP: the CLIP ViT-B/32 text and vision towers exported to ONNX (int8-quantized by default), with the
+  standard CLIP preprocessing (resize shortest edge to 224 with bicubic resampling, center-crop 224×224, scale to
+  [0, 1], normalize with the CLIP mean/std) implemented with Pillow + NumPy.
+
+Model files come from the Hugging Face Hub (pre-exported by the Transformers.js project) and are cached in HF_HOME.
+Quantization changes vectors slightly; see docs/RAG_DESIGN.md for the measured effect on retrieval quality.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import List, Sequence
+
+import numpy as np
+from PIL import Image
+
+
+def _resolve(repo_or_dir: str, filename: str) -> str:
+    local = Path(repo_or_dir)
+    if local.is_dir():
+        return str(local / filename)
+    from huggingface_hub import hf_hub_download
+
+    return hf_hub_download(repo_or_dir, filename)
+
+
+def _session(path: str):
+    import onnxruntime as ort
+
+    opts = ort.SessionOptions()
+    threads = int(os.getenv("DRIVEDOCS_ONNX_THREADS", "0") or 0) or min(4, os.cpu_count() or 1)
+    opts.intra_op_num_threads = threads
+    opts.inter_op_num_threads = 1
+    # Several sessions share the process; spinning worker threads would contend with each other (measured 4-10x
+    # slower) and burn CPU on small shared instances.
+    opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    # The memory-pattern optimisation keeps per-shape arena buffers alive; disabling it keeps RSS flat.
+    opts.enable_mem_pattern = False
+    opts.enable_cpu_mem_arena = False
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    return ort.InferenceSession(path, sess_options=opts, providers=["CPUExecutionProvider"])
+
+
+def _tokenizer(path: str, max_length: int, pad_id: int, pad_token: str):
+    from tokenizers import Tokenizer
+
+    tok = Tokenizer.from_file(path)
+    tok.enable_truncation(max_length=max_length)
+    tok.enable_padding(pad_id=pad_id, pad_token=pad_token)
+    return tok
+
+
+def _l2_normalize(x: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    return (x / np.clip(norms, 1e-12, None)).astype(np.float32)
+
+
+class OnnxTextEncoder:
+    """Sentence-Transformers-compatible encoder for BERT-style models with mean pooling."""
+
+    def __init__(self, repo: str, model_file: str, max_length: int = 256) -> None:
+        self.session = _session(_resolve(repo, model_file))
+        tokenizer_json = json.loads(Path(_resolve(repo, "tokenizer.json")).read_text(encoding="utf-8"))
+        pad = (tokenizer_json.get("padding") or {})
+        self.tokenizer = _tokenizer(
+            _resolve(repo, "tokenizer.json"), max_length, int(pad.get("pad_id", 0)), pad.get("pad_token", "[PAD]")
+        )
+        self.input_names = {i.name for i in self.session.get_inputs()}
+
+    def encode(self, texts: Sequence[str], batch_size: int = 32, **_: object) -> np.ndarray:
+        out: List[np.ndarray] = []
+        for start in range(0, len(texts), batch_size):
+            enc = self.tokenizer.encode_batch(list(texts[start : start + batch_size]))
+            ids = np.array([e.ids for e in enc], dtype=np.int64)
+            mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
+            feeds = {"input_ids": ids, "attention_mask": mask}
+            if "token_type_ids" in self.input_names:
+                feeds["token_type_ids"] = np.array([e.type_ids for e in enc], dtype=np.int64)
+            hidden = self.session.run(None, feeds)[0]
+            m = mask[..., None].astype(np.float32)
+            pooled = (hidden * m).sum(axis=1) / np.clip(m.sum(axis=1), 1e-9, None)
+            out.append(_l2_normalize(pooled))
+        return np.vstack(out)
+
+
+CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
+CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
+
+
+def clip_preprocess(img: Image.Image, size: int = 224) -> np.ndarray:
+    """CLIP image preprocessing → float32 array (3, size, size)."""
+    img = img.convert("RGB")
+    w, h = img.size
+    scale = size / min(w, h)
+    img = img.resize((max(size, round(w * scale)), max(size, round(h * scale))), Image.BICUBIC)
+    w, h = img.size
+    left, top = (w - size) // 2, (h - size) // 2
+    img = img.crop((left, top, left + size, top + size))
+    arr = np.asarray(img, dtype=np.float32) / 255.0
+    arr = (arr - CLIP_MEAN) / CLIP_STD
+    return arr.transpose(2, 0, 1)
+
+
+class OnnxClipEncoder:
+    """CLIP text and image towers (projected, 512-d) run with ONNX Runtime."""
+
+    def __init__(self, repo: str, text_file: str, vision_file: str) -> None:
+        self.text_session = _session(_resolve(repo, text_file))
+        self.vision_session = _session(_resolve(repo, vision_file))
+        # CLIP pads with <|endoftext|>; the model pools at the first end-of-text token, so padding is harmless.
+        self.tokenizer = _tokenizer(_resolve(repo, "tokenizer.json"), 77, 49407, "<|endoftext|>")
+        self.text_inputs = {i.name for i in self.text_session.get_inputs()}
+
+    def encode_text(self, texts: Sequence[str]) -> np.ndarray:
+        enc = self.tokenizer.encode_batch(list(texts))
+        feeds = {"input_ids": np.array([e.ids for e in enc], dtype=np.int64)}
+        if "attention_mask" in self.text_inputs:
+            feeds["attention_mask"] = np.array([e.attention_mask for e in enc], dtype=np.int64)
+        return _l2_normalize(self.text_session.run(["text_embeds"], feeds)[0])
+
+    def encode_images(self, images: Sequence[Image.Image]) -> np.ndarray:
+        pixels = np.stack([clip_preprocess(img) for img in images]).astype(np.float32)
+        return _l2_normalize(self.vision_session.run(["image_embeds"], {"pixel_values": pixels})[0])
