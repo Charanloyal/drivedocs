@@ -223,8 +223,14 @@ Variants measured against the PyTorch reference (*v0.2* corpus; memory = extra R
 **Why int8 now:** LangChain (`langchain-core` + `langsmith`) adds ~37 MB RSS. The deployed v0.2 build already reported
 489 MB on Render's 512 MB Free instance, so adding the agent with fp32 MiniLM would have left almost no headroom. With
 int8 MiniLM the process measured ~396 MB locally after start-up with the agent loaded and ~397 MB after repeated
-compound agent queries (vs 463 MB for fp32 + agent on the same machine). A `malloc_trim(0)` after start-up returns
-memory freed by seeding to the OS on Linux.
+compound agent queries (vs 463 MB for fp32 + agent on the same machine).
+
+**Prebuilt index and vision idle-unload.** Building the demo index during the deploy build
+(`scripts/build_demo_index.py`) removes embedding from start-up, and the CLIP vision tower, which is only needed to
+embed new images (text-to-image search uses the text tower), is loaded on demand and released after
+`DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS` (300), followed by `malloc_trim(0)` on Linux. Measured locally: ~318 MB at
+start-up, ~388 MB while embedding an image, ~320 MB again after the idle period; start-up 0.5 s. Evaluation results
+are unchanged.
 
 ONNX Runtime worker threads busy-wait by default; with three sessions plus FAISS in one process they contended and
 requests were 4–10× slower, so spinning is disabled and the thread count capped (`DRIVEDOCS_ONNX_THREADS`).

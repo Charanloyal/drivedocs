@@ -78,6 +78,9 @@ runtime:
   preload_models: true
   seed_sample_data: true
   max_concurrent_inference: 2
+  # Seconds without image embedding after which the CLIP vision tower (~70 MB) is released; 0 keeps it loaded.
+  # Text-to-image search only needs the always-loaded CLIP text tower.
+  vision_idle_unload_seconds: 300
   ready_wait_seconds: 60
 
 retrieval:

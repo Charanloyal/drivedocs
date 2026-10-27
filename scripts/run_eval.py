@@ -57,6 +57,8 @@ def main() -> int:
     parser.add_argument("--provider", default="extractive", help="generation provider to evaluate")
     parser.add_argument("--mode", choices=["agent", "direct"], default="agent", help="answer path to evaluate")
     parser.add_argument("--skip-security", action="store_true")
+    parser.add_argument("--strict", action="store_true",
+                        help="exit with status 1 if any QA question or security case fails (for CI)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -106,7 +108,13 @@ def main() -> int:
         for key, value in report.security.summary.items():
             print(f"  {key:32s} {value}")
         print(f"  {'failing cases':32s} {[r.case_id for r in report.security.results if not r.passed]}")
-    print(f"[+] Wrote {json_out.relative_to(ROOT)} and {md_out.relative_to(ROOT)}")
+    print(f"[+] Wrote {_label(json_out)} and {_label(md_out)}")
+    failures = [r.query_id for r in report.query_results if not r.passed]
+    if report.security:
+        failures += [r.case_id for r in report.security.results if not r.passed]
+    if args.strict and failures:
+        print(f"[!] --strict: {len(failures)} failing item(s): {failures}")
+        return 1
     return 0
 
 

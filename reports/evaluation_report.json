@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-27T09:29:49+00:00",
+  "timestamp": "2026-10-27T13:41:36+00:00",
   "environment": {
     "text_model": "Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx",
     "image_model": "Xenova/clip-vit-base-patch32/onnx/text_model_q4.onnx+onnx/vision_model_q4.onnx",
@@ -50,9 +50,9 @@
     "negative_rejection_rate": 1.0,
     "hard_negative_handling_rate": 1.0,
     "pass_rate": 1.0,
-    "latency_mean_ms": 8.51,
-    "latency_p50_ms": 6.39,
-    "latency_p95_ms": 14.22
+    "latency_mean_ms": 8.88,
+    "latency_p50_ms": 6.57,
+    "latency_p95_ms": 14.66
   },
   "comparison": {
     "hybrid_rrf_document_mrr": 0.9343,
@@ -102,7 +102,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 14.22,
+      "latency_ms": 14.66,
       "generated_answer": "The recommended cold tire inflation pressure for the Aurora S5 is 35 psi (240 kPa) for both the front and the rear tires with the standard 225/45R18 tires. [Source: aurora_s5_owner_manual.pdf, Page 2] Tire pressure monitoring system (TPMS) warning (amber horseshoe with an exclamation mark): one or more tires is at least 25 percent below the recommended cold inflation pressure. [Source: aurora_s5_owner_manual.pdf, Page 1] Check the tire pressure at least once a month when the tires are cold, which means the vehicle has been parked for at least three hours. [Source: aurora_s5_owner_manual.pdf, Page 2]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 2).",
       "passed": true
     },
@@ -148,7 +148,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.54,
+      "latency_ms": 6.05,
       "generated_answer": "The compact spare tire must be inflated to 60 psi (420 kPa). [Source: aurora_s5_owner_manual.pdf, Page 2] The compact spare tire is for temporary use only. [Source: roadside_emergency_guide.txt, Page 1] Do not exceed 50 mph (80 km/h) and do not drive more than 70 miles on the compact spare tire. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -194,7 +194,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.05,
+      "latency_ms": 6.56,
       "generated_answer": "The engine oil capacity with an oil filter change is 4.8 quarts (4.5 litres). [Source: aurora_s5_owner_manual.pdf, Page 3] Every 7,500 miles or 12 months: Replace the engine oil and oil filter (SAE 0W-20 full synthetic). [Source: maintenance_schedule.md, Page 1] Engine oil: use SAE 0W-20 full synthetic oil that meets the API SP specification. [Source: aurora_s5_owner_manual.pdf, Page 3]",
       "passed": true
     },
@@ -240,7 +240,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.7,
+      "latency_ms": 6.57,
       "generated_answer": "Engine oil: use SAE 0W-20 full synthetic oil that meets the API SP specification. [Source: aurora_s5_owner_manual.pdf, Page 3] The engine oil capacity with an oil filter change is 4.8 quarts (4.5 litres). [Source: aurora_s5_owner_manual.pdf, Page 3] Low oil pressure warning (red oil can): if this light comes on while driving, stop the vehicle as soon as it is safe, switch off the engine and check the engine oil level. [Source: aurora_s5_owner_manual.pdf, Page 1]",
       "passed": true
     },
@@ -286,7 +286,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.8,
+      "latency_ms": 5.09,
       "generated_answer": "Brake fluid absorbs moisture over time, so it must be replaced every 3 years regardless of mileage. [Source: aurora_s5_owner_manual.pdf, Page 3] Every 3 years: Replace the brake fluid (DOT 4) regardless of mileage. [Source: maintenance_schedule.md, Page 1] Brake fluid: use DOT 4 brake fluid only. [Source: aurora_s5_owner_manual.pdf, Page 3]",
       "passed": true
     },
@@ -333,7 +333,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 13.11,
+      "latency_ms": 13.49,
       "generated_answer": "A flashing check engine light indicates a severe engine misfire that can damage the catalytic converter; reduce speed and have the vehicle serviced immediately. [Source: aurora_s5_owner_manual.pdf, Page 1] Check engine light (amber engine outline): a steady light means the on-board diagnostic system has detected an emission-related fault, so have the vehicle inspected soon. [Source: aurora_s5_owner_manual.pdf, Page 1] Low oil pressure warning (red oil can): if this light comes on while driving, stop the vehicle as soon as it is safe, switch off the engine and check the engine oil level. [Source: aurora_s5_owner_manual.pdf, Page 1]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 1).",
       "passed": true
     },
@@ -380,7 +380,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 14.31,
+      "latency_ms": 15.08,
       "generated_answer": "Low oil pressure warning (red oil can): if this light comes on while driving, stop the vehicle as soon as it is safe, switch off the engine and check the engine oil level. [Source: aurora_s5_owner_manual.pdf, Page 1]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 1).",
       "passed": true
     },
@@ -427,7 +427,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 12.63,
+      "latency_ms": 14.58,
       "generated_answer": "Tire pressure monitoring system (TPMS) warning (amber horseshoe with an exclamation mark): one or more tires is at least 25 percent below the recommended cold inflation pressure. [Source: aurora_s5_owner_manual.pdf, Page 1] If the light flashes for about one minute and then stays on, the TPMS itself has a malfunction. [Source: aurora_s5_owner_manual.pdf, Page 1] Warning lights on the instrument cluster use a colour code. [Source: aurora_s5_owner_manual.pdf, Page 1]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 1).",
       "passed": true
     },
@@ -474,7 +474,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 13.83,
+      "latency_ms": 15.28,
       "generated_answer": "Fourth, connect the other end of the black cable to an unpainted metal ground point on the engine block, away from the discharged battery. [Source: aurora_s5_owner_manual.pdf, Page 4] If the 12-volt battery is discharged, the vehicle can be jump started with a booster battery and jumper cables. [Source: aurora_s5_owner_manual.pdf, Page 4] Never connect the black cable directly to the negative terminal of the discharged battery, because a spark could ignite the hydrogen gas released by the battery. [Source: aurora_s5_owner_manual.pdf, Page 4]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 4).",
       "passed": true
     },
@@ -521,7 +521,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 11.12,
+      "latency_ms": 12.33,
       "generated_answer": "Interior fuse box assignments: fuse 7 (10 A) protects the horn, fuse 12 (15 A) the front power outlet, fuse 15 (20 [Source: aurora_s5_owner_manual.pdf, Page 5]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 5).",
       "passed": true
     },
@@ -568,7 +568,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 12.4,
+      "latency_ms": 13.69,
       "generated_answer": "Replace a blown fuse only with a fuse of the same amperage rating, because a higher-rated fuse can cause wiring damage or a fire. [Source: aurora_s5_owner_manual.pdf, Page 5]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 5).",
       "passed": true
     },
@@ -614,7 +614,7 @@
       "claims_grounded": 2,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.07,
+      "latency_ms": 6.16,
       "generated_answer": "Adaptive Cruise Control (ACC) maintains a set speed and a selected following distance to the vehicle ahead. [Source: aurora_s5_owner_manual.pdf, Page 6] ACC can be set at speeds between 20 mph and 90 mph (30 to 145 km/h) and offers four following-distance settings. [Source: aurora_s5_owner_manual.pdf, Page 6]",
       "passed": true
     },
@@ -660,7 +660,7 @@
       "claims_grounded": 2,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.21,
+      "latency_ms": 5.81,
       "generated_answer": "Lane Keeping Assist operates at speeds above 40 mph (65 km/h). [Source: aurora_s5_owner_manual.pdf, Page 6] Lane Keeping Assist (LKA) gently steers the vehicle back toward the center of the lane when it drifts without the turn signal on. [Source: aurora_s5_owner_manual.pdf, Page 6]",
       "passed": true
     },
@@ -706,7 +706,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.68,
+      "latency_ms": 4.01,
       "generated_answer": "Every 7,500 miles or 12 months: Replace the engine oil and oil filter (SAE 0W-20 full synthetic). [Source: maintenance_schedule.md, Page 1] Every 30,000 miles: Replace the engine air filter. [Source: maintenance_schedule.md, Page 1] The engine air filter should be replaced at the 30,000-mile service. [Source: service_record_ro58213.txt, Page 1]",
       "passed": true
     },
@@ -752,7 +752,7 @@
       "claims_grounded": 2,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.34,
+      "latency_ms": 4.65,
       "generated_answer": "Under severe conditions, change the engine oil and filter every 3,750 miles or 6 months and replace the cabin air filter every 7,500 miles. [Source: maintenance_schedule.md, Page 1] Severe driving conditions include frequent trips shorter than 5 miles, extended idling, towing a trailer, driving on dusty or unpaved roads, and sustained outside temperatures below 0 °F or above 90 °F. [Source: maintenance_schedule.md, Page 1]",
       "passed": true
     },
@@ -798,7 +798,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.04,
+      "latency_ms": 3.39,
       "generated_answer": "Every 100,000 miles: Replace the iridium spark plugs. [Source: maintenance_schedule.md, Page 1]",
       "passed": true
     },
@@ -844,7 +844,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.92,
+      "latency_ms": 3.82,
       "generated_answer": "Every 15,000 miles or 24 months: Replace the cabin air filter. [Source: maintenance_schedule.md, Page 1] The engine air filter should be replaced at the 30,000-mile service. [Source: service_record_ro58213.txt, Page 1] Every 30,000 miles: Replace the engine air filter. [Source: maintenance_schedule.md, Page 1]",
       "passed": true
     },
@@ -890,7 +890,7 @@
       "claims_grounded": 2,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.67,
+      "latency_ms": 5.39,
       "generated_answer": "The wheel nut tightening torque is 80 lb-ft (108 N·m); recheck the torque after driving 50 miles. [Source: roadside_emergency_guide.txt, Page 1] After mounting the spare, tighten the wheel nuts in a star (crisscross) pattern. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -936,7 +936,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 6.39,
+      "latency_ms": 6.02,
       "generated_answer": "The compact spare tire is for temporary use only. [Source: roadside_emergency_guide.txt, Page 1] Do not exceed 50 mph (80 km/h) and do not drive more than 70 miles on the compact spare tire. [Source: roadside_emergency_guide.txt, Page 1] The compact spare tire, the jack and the wheel nut wrench are stored under the cargo floor panel in the trunk. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -982,7 +982,7 @@
       "claims_grounded": 3,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.6,
+      "latency_ms": 6.72,
       "generated_answer": "Engine coolant temperature warning (red thermometer): the engine is overheating. [Source: aurora_s5_owner_manual.pdf, Page 1] Pull over safely, switch off the engine and let it cool for at least 30 minutes before checking the coolant level. [Source: aurora_s5_owner_manual.pdf, Page 1] If steam comes from the engine compartment or the coolant temperature warning light comes on, pull over safely and switch off the engine. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -1028,7 +1028,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.07,
+      "latency_ms": 5.26,
       "generated_answer": "The Aurora S5 must be towed with all four wheels off the ground or with the front wheels on a towing dolly. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -1075,7 +1075,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 10.72,
+      "latency_ms": 11.7,
       "generated_answer": "Vehicle identification: the Vehicle Identification Number (VIN) is stamped on a plate at the top left of the instrument panel, visible through the windshield, and is repeated on the driver's door pillar label. [Source: aurora_s5_owner_manual.pdf, Page 3]",
       "passed": true
     },
@@ -1121,7 +1121,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 4.86,
+      "latency_ms": 5.33,
       "generated_answer": "Brake inspection: the front brake pads measured 7 mm and the rear brake pads 6 mm; no brake service was required. [Source: service_record_ro58213.txt, Page 1]",
       "passed": true
     },
@@ -1168,7 +1168,7 @@
       "claims_grounded": 2,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 12.96,
+      "latency_ms": 13.4,
       "generated_answer": "Battery test: 12.6 volts and 640 cold cranking amps measured; the battery is in good condition. [Source: service_record_ro58213.txt, Page 1] Brake inspection: the front brake pads measured 7 mm and the rear brake pads 6 mm; no brake service was required. [Source: service_record_ro58213.txt, Page 1]",
       "passed": true
     },
@@ -1214,7 +1214,7 @@
       "claims_grounded": 1,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 5.39,
+      "latency_ms": 5.14,
       "generated_answer": "Fuel: use unleaded gasoline with an octane rating of 87 (AKI) or higher. [Source: aurora_s5_owner_manual.pdf, Page 3]",
       "passed": true
     },
@@ -1261,7 +1261,7 @@
       "claims_grounded": 4,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 8.62,
+      "latency_ms": 10.12,
       "generated_answer": "Every 3 years: Replace the brake fluid (DOT 4) regardless of mileage. [Source: maintenance_schedule.md, Page 1] Brake fluid absorbs moisture over time, so it must be replaced every 3 years regardless of mileage. [Source: aurora_s5_owner_manual.pdf, Page 3] Brake fluid: use DOT 4 brake fluid only. [Source: aurora_s5_owner_manual.pdf, Page 3]\n\nBrake system warning (red BRAKE): the parking brake is applied or the brake fluid level is low. [Source: aurora_s5_owner_manual.pdf, Page 1]",
       "passed": true
     },
@@ -1308,7 +1308,7 @@
       "claims_grounded": 5,
       "fact_coverage": 1.0,
       "negative_handled": null,
-      "latency_ms": 9.43,
+      "latency_ms": 10.98,
       "generated_answer": "The wheel nut tightening torque is 80 lb-ft (108 N·m); recheck the torque after driving 50 miles. [Source: roadside_emergency_guide.txt, Page 1] The compact spare tire, the jack and the wheel nut wrench are stored under the cargo floor panel in the trunk. [Source: roadside_emergency_guide.txt, Page 1] Loosen each wheel nut half a turn before raising the vehicle. [Source: roadside_emergency_guide.txt, Page 1]\n\nDo not exceed 50 mph (80 km/h) and do not drive more than 70 miles on the compact spare tire. [Source: roadside_emergency_guide.txt, Page 1] The compact spare tire is for temporary use only. [Source: roadside_emergency_guide.txt, Page 1]",
       "passed": true
     },
@@ -1355,7 +1355,7 @@
       "claims_grounded": 1,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 12.13,
+      "latency_ms": 12.0,
       "generated_answer": "Warning lights on the instrument cluster use a colour code. [Source: aurora_s5_owner_manual.pdf, Page 1]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 1).",
       "passed": true
     },
@@ -1402,7 +1402,7 @@
       "claims_grounded": 1,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 13.45,
+      "latency_ms": 14.03,
       "generated_answer": "The Tire and Loading Information placard is located on the driver's side door pillar (B-pillar). [Source: aurora_s5_owner_manual.pdf, Page 2]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 2).",
       "passed": true
     },
@@ -1449,7 +1449,7 @@
       "claims_grounded": 3,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 11.73,
+      "latency_ms": 13.39,
       "generated_answer": "If the 12-volt battery is discharged, the vehicle can be jump started with a booster battery and jumper cables. [Source: aurora_s5_owner_manual.pdf, Page 4] Never connect the black cable directly to the negative terminal of the discharged battery, because a spark could ignite the hydrogen gas released by the battery. [Source: aurora_s5_owner_manual.pdf, Page 4] Connect the jumper cables in this order. [Source: aurora_s5_owner_manual.pdf, Page 4]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 4).",
       "passed": true
     },
@@ -1496,7 +1496,7 @@
       "claims_grounded": 3,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 11.5,
+      "latency_ms": 13.14,
       "generated_answer": "The interior fuse box is located behind the cover on the driver's side lower dashboard panel. [Source: aurora_s5_owner_manual.pdf, Page 5] Interior fuse box assignments: fuse 7 (10 A) protects the horn, fuse 12 (15 A) the front power outlet, fuse 15 (20 [Source: aurora_s5_owner_manual.pdf, Page 5] The engine compartment fuse box is next to the battery. [Source: aurora_s5_owner_manual.pdf, Page 5]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 5).",
       "passed": true
     },
@@ -1543,7 +1543,7 @@
       "claims_grounded": 3,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 11.96,
+      "latency_ms": 13.65,
       "generated_answer": "The engine compartment fuse box is next to the battery. [Source: aurora_s5_owner_manual.pdf, Page 5] Replaced the engine oil and oil filter with 4.8 quarts of SAE 0W-20 full synthetic oil. [Source: service_record_ro58213.txt, Page 1] Rotated the tires and set all four tires to 35 psi cold; set the compact spare tire to 60 psi. [Source: service_record_ro58213.txt, Page 1]\n\nRelated visual evidence: engine_bay_diagram.png (Page 1).",
       "passed": true
     },
@@ -1590,7 +1590,7 @@
       "claims_grounded": 1,
       "fact_coverage": null,
       "negative_handled": null,
-      "latency_ms": 11.05,
+      "latency_ms": 12.95,
       "generated_answer": "Never open the coolant reservoir cap or the radiator cap while the engine is hot, because scalding coolant can spray out under pressure. [Source: roadside_emergency_guide.txt, Page 1]\n\nRelated visual evidence: engine_bay_diagram.png (Page 1).",
       "passed": true
     },
@@ -1636,7 +1636,7 @@
       "claims_grounded": 0,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 3.74,
+      "latency_ms": 4.54,
       "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
       "passed": true
     },
@@ -1682,7 +1682,7 @@
       "claims_grounded": 0,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 5.76,
+      "latency_ms": 4.47,
       "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
       "passed": true
     },
@@ -1728,7 +1728,7 @@
       "claims_grounded": 0,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 5.08,
+      "latency_ms": 4.46,
       "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
       "passed": true
     },
@@ -1774,7 +1774,7 @@
       "claims_grounded": 0,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 4.73,
+      "latency_ms": 3.9,
       "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question.",
       "passed": true
     },
@@ -1821,7 +1821,7 @@
       "claims_grounded": 3,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 18.56,
+      "latency_ms": 14.05,
       "generated_answer": "Note: the indexed documents do not mention 'awd', 'sport'. The closest related evidence is:\n\nThe recommended cold tire inflation pressure for the Aurora S5 is 35 psi (240 kPa) for both the front and the rear tires with the standard 225/45R18 tires. [Source: aurora_s5_owner_manual.pdf, Page 2] It lists the original tire sizes, the recommended cold inflation pressures and the maximum vehicle load. [Source: aurora_s5_owner_manual.pdf, Page 2] Every 7,500 miles or 12 months: Rotate the tires and check the tire pressure, including the compact spare. [Source: maintenance_schedule.md, Page 1]\n\nRelated visual evidence: aurora_s5_owner_manual.pdf (Page 2).",
       "passed": true
     },
@@ -1867,7 +1867,7 @@
       "claims_grounded": 0,
       "fact_coverage": null,
       "negative_handled": true,
-      "latency_ms": 6.63,
+      "latency_ms": 4.38,
       "generated_answer": "I cannot find sufficient evidence in the provided documents to answer this question. Some related passages were retrieved, but none of them directly answers it; they are shown below for inspection.",
       "passed": true
     }

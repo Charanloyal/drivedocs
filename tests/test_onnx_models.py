@@ -53,3 +53,62 @@ def test_onnx_clip_text_image_alignment():
     assert imgs.shape == (2, 512) and texts.shape == (2, 512)
     sims = texts @ imgs.T
     assert sims[0, 0] > sims[0, 1] and sims[1, 1] > sims[1, 0]
+
+
+class _FakeSession:
+    def __init__(self, path):
+        self.path = path
+
+    def get_inputs(self):
+        return []
+
+    def run(self, names, feeds):
+        return [np.ones((len(feeds["pixel_values"]), 512), dtype=np.float32)]
+
+
+@pytest.fixture
+def fake_clip(monkeypatch):
+    import drivedocs.onnx_models as om
+
+    created = []
+
+    def session(path):
+        created.append(path)
+        return _FakeSession(path)
+
+    monkeypatch.setattr(om, "_session", session)
+    monkeypatch.setattr(om, "_resolve", lambda repo, name: f"{repo}/{name}")
+    monkeypatch.setattr(om, "_tokenizer", lambda *a, **k: None)
+    return om, created
+
+
+def test_clip_vision_tower_is_lazy_and_unloads_when_idle(fake_clip):
+    import time
+
+    om, created = fake_clip
+    enc = om.OnnxClipEncoder("repo", "text.onnx", "vision.onnx", idle_unload_seconds=0.2)
+    assert created == ["repo/text.onnx"] and not enc.vision_loaded  # only the text tower at start-up
+    out = enc.encode_images([Image.new("RGB", (64, 64))])
+    assert out.shape == (1, 512) and enc.vision_loaded and enc.vision_loads == 1
+    time.sleep(0.5)
+    assert not enc.vision_loaded  # released after the idle period
+    enc.encode_images([Image.new("RGB", (64, 64))])
+    assert enc.vision_loaded and enc.vision_loads == 2  # transparently reloaded
+    enc.unload_vision()
+    assert not enc.vision_loaded
+
+
+def test_clip_vision_tower_loads_once_under_concurrency_and_can_stay_loaded(fake_clip):
+    import threading
+    import time
+
+    om, created = fake_clip
+    enc = om.OnnxClipEncoder("repo", "text.onnx", "vision.onnx", idle_unload_seconds=0)
+    threads = [threading.Thread(target=enc.encode_images, args=([Image.new("RGB", (32, 32))],)) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert enc.vision_loads == 1 and created.count("repo/vision.onnx") == 1
+    time.sleep(0.2)
+    assert enc.vision_loaded  # idle_unload_seconds=0 keeps it loaded

@@ -3,13 +3,15 @@
 # One free web service runs the FastAPI app, which also serves the web UI. No database or other services are needed.
 #
 # Sizing (measured locally, see docs/DEPLOYMENT.md §2): embeddings run on ONNX Runtime (no PyTorch) with int8 MiniLM
-# and 4-bit CLIP, which leaves room for the LangChain agent: ~0.4 GB RSS with the vehicle corpus, inside the 512 MB
-# Free instance. If you add many large documents, switch `plan` to `starter` or `standard`, or set
+# and 4-bit CLIP; the demo index is built during the build and the CLIP vision tower is released when idle. That is
+# ~0.32 GB RSS with the agent loaded (~0.39 GB while embedding an uploaded image), inside the 512 MB Free instance.
+# If you add many large documents, switch `plan` to `starter` or `standard`, or set
 # DRIVEDOCS_ENABLE_IMAGE_SEARCH=false (~0.25 GB).
 #
 # Free-plan behaviour: the service sleeps after 15 minutes without traffic and takes ~1 minute to wake up.
-# Storage is ephemeral: uploads are lost on restart/redeploy/sleep; the bundled sample documents are re-indexed on
-# every boot and the UI says so. Persistent disks require a paid plan (see the bottom of this file).
+# Storage is ephemeral: uploads are lost on restart/redeploy/sleep; the bundled sample documents are indexed during
+# the build and restored on every boot, and the UI says so. Persistent disks require a paid plan (see the bottom of
+# this file).
 services:
   - type: web
     name: drivedocs
@@ -21,7 +23,8 @@ services:
       pip install --upgrade pip &&
       pip install -r requirements.txt &&
       pip install --no-deps -e . &&
-      HF_HUB_OFFLINE=0 python scripts/download_models.py
+      HF_HUB_OFFLINE=0 python scripts/download_models.py &&
+      python scripts/build_demo_index.py
     # Single worker: every worker would load its own copy of the models. No --reload in production.
     startCommand: uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
     # /health never loads models: 200 while starting/ready, 503 only if start-up failed (so a broken deploy fails).
@@ -73,6 +76,10 @@ services:
         value: "2"
       - key: DRIVEDOCS_MAX_CONCURRENT_INFERENCE
         value: "1"
+      # Release the CLIP vision tower after 5 idle minutes; the demo index is prebuilt at build time, so it is only
+      # loaded when a visitor uploads an image or searches by image.
+      - key: DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS
+        value: "300"
       - key: OMP_NUM_THREADS
         value: "1"
       - key: MALLOC_ARENA_MAX

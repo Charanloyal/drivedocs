@@ -89,7 +89,13 @@ class CLIPEmbeddingModel:
             if self.backend == "onnx":
                 from drivedocs.onnx_models import OnnxClipEncoder
 
-                return (OnnxClipEncoder(self.onnx_repo, self.onnx_text_file, self.onnx_vision_file), None)
+                return (
+                    OnnxClipEncoder(
+                        self.onnx_repo, self.onnx_text_file, self.onnx_vision_file,
+                        idle_unload_seconds=settings.vision_idle_unload_seconds,
+                    ),
+                    None,
+                )
             from transformers import CLIPModel, CLIPProcessor
 
             processor = CLIPProcessor.from_pretrained(self.model_name)
@@ -103,6 +109,23 @@ class CLIPEmbeddingModel:
     def warm_up(self) -> None:
         if not self.mock_mode:
             self._load()
+
+    @property
+    def vision_state(self) -> str:
+        """'loaded', 'idle' (ONNX vision tower released until the next image is embedded) or 'not loaded'."""
+        if self.mock_mode:
+            return "loaded"
+        model = self._model
+        if model is None:
+            return "not loaded"
+        loaded = getattr(model, "vision_loaded", True)
+        return "loaded" if loaded else "idle"
+
+    def unload_vision(self) -> None:
+        """Release the ONNX vision tower now (it reloads on the next image); no-op for other backends."""
+        model = None if self.mock_mode else self._model
+        if model is not None and hasattr(model, "unload_vision"):
+            model.unload_vision()
 
     @staticmethod
     def _open(images: List[ImageInput]) -> List[Image.Image]:

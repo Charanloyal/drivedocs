@@ -151,6 +151,11 @@ class Settings:
         self.max_concurrent_inference: int = int(
             _env_str("DRIVEDOCS_MAX_CONCURRENT_INFERENCE", str(runtime_cfg.get("max_concurrent_inference", 2)))
         )
+        # ONNX CLIP vision tower: released after this many idle seconds (0 = keep loaded). It is only needed to embed
+        # new images; text-to-image search uses the always-loaded text tower.
+        self.vision_idle_unload_seconds: float = float(
+            _env_str("DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS", str(runtime_cfg.get("vision_idle_unload_seconds", 300)))
+        )
         self.ready_wait_seconds: float = float(
             _env_str("DRIVEDOCS_READY_WAIT_SECONDS", str(runtime_cfg.get("ready_wait_seconds", 60)))
         )

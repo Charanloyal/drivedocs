@@ -165,3 +165,26 @@ def test_require_ready_raises_while_starting(tmp_path):
             service.require_ready()
     finally:
         service.config.ready_wait_seconds = original
+
+
+def test_prebuilt_index_is_reused_without_reseeding(make_service, tmp_path):
+    root = tmp_path / "prebuilt"
+    built = make_service(root=root, seed=True)
+    assert "seed_samples" in built.timings_ms and built.list_documents().total_documents == 5
+    # A new process starting from the build output must not re-embed the samples.
+    started = make_service(root=root, seed=True)
+    assert "seed_samples" not in started.timings_ms
+    assert started.list_documents().total_documents == 5
+    assert started.text_index.count() == built.text_index.count()
+    assert started.image_index.count() == built.image_index.count()
+
+
+def test_build_demo_index_refuses_mock_backend():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / "build_demo_index.py"
+    spec = importlib.util.spec_from_file_location("build_demo_index", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main() == 2  # the test suite runs on mock embeddings

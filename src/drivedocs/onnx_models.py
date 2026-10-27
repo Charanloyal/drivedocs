@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import threading
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 import numpy as np
 from PIL import Image
@@ -107,15 +109,75 @@ def clip_preprocess(img: Image.Image, size: int = 224) -> np.ndarray:
     return arr.transpose(2, 0, 1)
 
 
-class OnnxClipEncoder:
-    """CLIP text and image towers (projected, 512-d) run with ONNX Runtime."""
+def release_freed_memory() -> None:
+    """Return freed heap memory to the OS (glibc keeps it otherwise, so RSS would not drop)."""
+    import gc
 
-    def __init__(self, repo: str, text_file: str, vision_file: str) -> None:
+    gc.collect()
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:  # pragma: no cover - non-glibc Linux (e.g. musl)
+            pass
+
+
+class OnnxClipEncoder:
+    """CLIP text and image towers (projected, 512-d) run with ONNX Runtime.
+
+    The text tower is loaded eagerly: every agent diagram search embeds text. The vision tower is only needed to embed
+    new images (uploads, image-to-image queries; the demo index is built at build time), so it is loaded on first use
+    and released after ``idle_unload_seconds`` without use (0 = keep it loaded).
+    """
+
+    def __init__(
+        self, repo: str, text_file: str, vision_file: str, idle_unload_seconds: Optional[float] = None
+    ) -> None:
         self.text_session = _session(_resolve(repo, text_file))
-        self.vision_session = _session(_resolve(repo, vision_file))
+        # Resolve now so a missing model file fails at start-up, not on the first upload.
+        self.vision_path = _resolve(repo, vision_file)
+        if idle_unload_seconds is None:
+            idle_unload_seconds = float(os.getenv("DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS", "300") or 0)
+        self.idle_unload_seconds = max(0.0, idle_unload_seconds)
+        self._vision = None
+        self._vision_lock = threading.Lock()
+        self._unload_timer: Optional[threading.Timer] = None
+        self.vision_loads = 0
         # CLIP pads with <|endoftext|>; the model pools at the first end-of-text token, so padding is harmless.
         self.tokenizer = _tokenizer(_resolve(repo, "tokenizer.json"), 77, 49407, "<|endoftext|>")
         self.text_inputs = {i.name for i in self.text_session.get_inputs()}
+
+    @property
+    def vision_loaded(self) -> bool:
+        return self._vision is not None
+
+    def _vision_session(self):
+        with self._vision_lock:
+            if self._vision is None:
+                self._vision = _session(self.vision_path)
+                self.vision_loads += 1
+            if self.idle_unload_seconds > 0:
+                if self._unload_timer is not None:
+                    self._unload_timer.cancel()
+                self._unload_timer = threading.Timer(self.idle_unload_seconds, self.unload_vision)
+                self._unload_timer.daemon = True
+                self._unload_timer.start()
+            # Callers keep their own reference, so an unload during a running batch cannot break it.
+            return self._vision
+
+    def load_vision(self) -> None:
+        self._vision_session()
+
+    def unload_vision(self) -> None:
+        with self._vision_lock:
+            if self._unload_timer is not None:
+                self._unload_timer.cancel()
+            self._unload_timer = None
+            if self._vision is None:
+                return
+            self._vision = None
+        release_freed_memory()
 
     def encode_text(self, texts: Sequence[str]) -> np.ndarray:
         enc = self.tokenizer.encode_batch(list(texts))
@@ -126,4 +188,5 @@ class OnnxClipEncoder:
 
     def encode_images(self, images: Sequence[Image.Image]) -> np.ndarray:
         pixels = np.stack([clip_preprocess(img) for img in images]).astype(np.float32)
-        return _l2_normalize(self.vision_session.run(["image_embeds"], {"pixel_values": pixels})[0])
+        session = self._vision_session()
+        return _l2_normalize(session.run(["image_embeds"], {"pixel_values": pixels})[0])

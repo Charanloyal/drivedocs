@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sys
 import threading
 import time
 from pathlib import Path
@@ -86,16 +85,9 @@ def _rss_mb() -> Optional[float]:
 
 def _release_memory() -> None:
     """Return memory freed after start-up (PDF parsing, image batches) to the OS; glibc keeps it otherwise."""
-    import gc
+    from drivedocs.onnx_models import release_freed_memory
 
-    gc.collect()
-    if sys.platform.startswith("linux"):
-        try:
-            import ctypes
-
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-        except Exception:  # pragma: no cover - non-glibc Linux (e.g. musl)
-            pass
+    release_freed_memory()
 
 
 class DriveDocsService:
@@ -173,15 +165,19 @@ class DriveDocsService:
                 self.timings_ms["seed_samples"] = round((time.perf_counter() - t0) * 1000, 1)
 
             self.timings_ms["startup_total"] = round((time.perf_counter() - started) * 1000, 1)
+            # Seeding/re-embedding used the CLIP vision tower; release it until a visitor embeds an image.
+            if self.config.vision_idle_unload_seconds > 0:
+                self.image_model.unload_vision()
             _release_memory()
             self.phase = "ready"
             logger.info(
-                "DriveDocs ready in %.0f ms: %d documents, %d chunks, %d images, storage=%s",
+                "DriveDocs ready in %.0f ms: %d documents, %d chunks, %d images, storage=%s, prebuilt index=%s",
                 self.timings_ms["startup_total"],
                 len(self.ingestion.documents_by_id),
                 self.text_index.count(),
                 self.image_index.count(),
                 self.storage.mode,
+                "seed_samples" not in self.timings_ms,
             )
         except Exception as exc:  # pragma: no cover - surfaced through /ready
             self.phase = "failed"
@@ -485,6 +481,12 @@ class DriveDocsService:
             },
         )
 
+    def _image_model_status(self, status: ComponentStatus) -> ComponentStatus:
+        if self.image_index.enabled and self.image_model.backend == "onnx" and self.image_model.is_loaded:
+            vision = self.image_model.vision_state
+            status.detail += "; vision tower " + ("loaded" if vision == "loaded" else "unloaded until the next image")
+        return status
+
     def readiness(self) -> ReadinessResponse:
         text_state = registry.state(self.text_model.registry_key)
         image_state = registry.state(self.image_model.registry_key)
@@ -517,7 +519,7 @@ class DriveDocsService:
                 detail=f"{self.image_index.count()} images" + ("" if self.image_index.enabled else " (search disabled)"),
             ),
             "text_model": model_status(self.text_model, text_state),
-            "image_model": model_status(self.image_model, image_state, self.image_index.enabled),
+            "image_model": self._image_model_status(model_status(self.image_model, image_state, self.image_index.enabled)),
         }
         essential = ("storage", "registry", "text_index", "text_model")
         ready = self.phase == "ready" and all(components[name].ready for name in essential)

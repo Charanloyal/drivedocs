@@ -9,7 +9,8 @@ retrieval, with every citation verified and security guardrails against prompt i
 [![CLIP + FAISS](https://img.shields.io/badge/CLIP_%2B_FAISS-multimodal_retrieval-0467DF)](src/drivedocs/image_index.py)
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-MiniLM_%2B_CLIP-FFD21E?logo=huggingface&logoColor=black)](src/drivedocs/onnx_models.py)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API_%2B_UI-009688?logo=fastapi&logoColor=white)](src/drivedocs/api.py)
-[![Tests](https://img.shields.io/badge/tests-203_passing-brightgreen)](tests/)
+[![CI](https://github.com/Charanloyal/drivedocs/actions/workflows/ci.yml/badge.svg)](https://github.com/Charanloyal/drivedocs/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-207_passing-brightgreen)](tests/)
 [![Recall@5](https://img.shields.io/badge/Recall%405-100%25-brightgreen)](reports/EVALUATION.md)
 [![Groundedness](https://img.shields.io/badge/groundedness-100%25-brightgreen)](reports/EVALUATION.md)
 [![Security](https://img.shields.io/badge/injection_%26_PII_tests-23%2F23-brightgreen)](reports/EVALUATION.md#security-prompt-injection-and-pii-leakage)
@@ -25,7 +26,7 @@ retrieval, with every citation verified and security guardrails against prompt i
 The demo answers questions about the bundled documents of a fictional car, the **Aurora S5**: a 6-page owner's
 manual PDF with 4 diagrams (warning lights, tire placard, jump-start cables, fuse box), a maintenance schedule, a
 roadside emergency guide, a dealer service record with (fictional) personal data, and an engine-bay diagram. They are
-re-indexed every time the service starts. Try:
+indexed during the deploy build, so every instance starts with them ready. Try:
 
 * *What does a flashing check engine light indicate?* (text + the warning-light diagram)
 * *How often should brake fluid be replaced and what type of brake fluid should I use?* (the agent splits it in two)
@@ -47,7 +48,7 @@ on restart. The free instance sleeps after 15 idle minutes, so the first visit c
 | **Verified, grounded answers** | Answers quote retrieved evidence with `[Source: file, Page N]` tags; each tag is checked against the document registry, the page and the retrieved passage, and unverifiable tags are removed |
 | **Evaluation** | **Recall@5 = 100%** and **groundedness = 100%** on a curated 39-question QA set (text, visual, compound, out-of-corpus and near-domain negatives); full report in [reports/EVALUATION.md](reports/EVALUATION.md) |
 | **Security tests** | 23 adversarial cases: direct prompt injection, indirect injection through a poisoned document, and PII-extraction attempts against a service record. **0% attack success, 0% PII leakage**, and no over-blocking of legitimate questions |
-| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP): ~400 MB RSS with the agent loaded, ~1.6 s start-up, p50 answer latency ~6 ms |
+| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP), demo index built at deploy time, CLIP vision tower unloaded when idle: **~320 MB RSS** with the agent loaded, 0.5 s start-up, p50 answer latency ~6 ms |
 
 | Workspace | Diagram answer (CLIP via the agent) |
 | --- | --- |
@@ -148,7 +149,7 @@ Evaluation tab). Definitions: [docs/EVALUATION_METHODOLOGY.md](docs/EVALUATION_M
 | Fact coverage / answer rate | 100% / 100% |
 | Out-of-corpus refusals / hard negatives refused or flagged | 100% (3/3) / 100% (3/3) |
 | Pass rate | 100% (39/39); the direct pipeline without the agent passes 38/39 |
-| Latency p50 / p95 (warm, agent answer path, laptop CPU) | 6.4 ms / 14.2 ms |
+| Latency p50 / p95 (warm, agent answer path, laptop CPU) | 6.6 ms / 14.7 ms |
 
 **Security suite** ([`data/security/security_eval_set.json`](data/security/security_eval_set.json)): 23 cases
 (8 direct injection, 4 indirect injection through a poisoned document, 8 PII-extraction attempts, 3 benign controls).
@@ -296,8 +297,8 @@ Abbreviated response:
 ## Testing
 
 ```bash
-pytest                                               # 203 tests; mock embeddings, no downloads, temp storage
-python scripts/run_eval.py                           # QA (Recall@5, groundedness) + security suite, real models
+pytest                                               # 207 tests; mock embeddings, no downloads, temp storage
+python scripts/run_eval.py --strict                  # QA (Recall@5, groundedness) + security suite, real models
 python scripts/smoke_test.py http://127.0.0.1:8000   # 30 end-to-end checks against a running instance
 ```
 
@@ -312,21 +313,31 @@ persistence and crash recovery, and API behaviour (errors, size limits, path tra
 ## Deployment
 
 Render is the primary target: one **Free** web service defined in [`render.yaml`](render.yaml) runs the API and UI;
-pushes to `main` redeploy it.
+pushes to `main` redeploy it (when Auto-Deploy is on). [GitHub Actions CI](.github/workflows/ci.yml) runs the tests,
+the real-model evaluation and the security suite on every push and pull request.
 
 ```text
 Python: 3.14.7 (PYTHON_VERSION)
-Build:  pip install -r requirements.txt && pip install --no-deps -e . && HF_HUB_OFFLINE=0 python scripts/download_models.py
+Build:  pip install -r requirements.txt && pip install --no-deps -e . &&
+        HF_HUB_OFFLINE=0 python scripts/download_models.py && python scripts/build_demo_index.py
 Start:  uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
 Health: /health   (readiness detail at /ready)
 ```
 
-* **Memory:** the int8 MiniLM (−65 MB vs. fp32, identical evaluation results) makes room for LangChain (+37 MB) on
-  the 512 MB Free instance: measured locally at ~400 MB RSS with the agent loaded and stable over repeated agent
-  queries (the previous fp32 build without the agent reported 489 MB on Render). A `malloc_trim` after start-up
-  returns seeding garbage to the OS on Linux. If memory ever runs short, set `DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`
-  (~0.25 GB) or use a paid plan.
-* **Storage:** ephemeral by default; the bundled documents are re-indexed on every boot.
+* **Memory** (measured locally with the Render settings):
+
+  | State | RSS |
+  | --- | --- |
+  | Start-up from the prebuilt index, agent loaded | **~320 MB** |
+  | After repeated agent chats (text and diagram search) | ~322 MB |
+  | While embedding an uploaded image (CLIP vision tower loaded) | ~388 MB |
+  | 5 minutes later (vision tower released) | ~320 MB |
+  | *v0.2 on Render for comparison (fp32 MiniLM, runtime seeding, no agent)* | *489 MB* |
+
+  The levers: int8 MiniLM (−65 MB vs. fp32, identical evaluation results), the demo index built during the deploy
+  build (no embedding at start-up), and the CLIP vision tower loaded only to embed new images and released after
+  `DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS` (300), with `malloc_trim` returning the memory to the OS on Linux.
+* **Storage:** ephemeral by default; the prebuilt demo index ships with the build, visitor uploads are lost on restart.
 * **Verify:** `python scripts/smoke_test.py https://drivedocs-3xr4.onrender.com`.
 * **Docker:** `docker build -t drivedocs . && docker run -p 8000:8000 drivedocs`.
 

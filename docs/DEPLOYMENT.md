@@ -14,14 +14,14 @@ A [`Dockerfile`](../Dockerfile) is provided for other container platforms.
 | --- | --- | --- |
 | Clean production install | ✅ | Fresh virtualenv, `pip install -r requirements.txt` (adds `langchain-core 1.7.0`), **no PyTorch** |
 | Render's platform can install every dependency | ✅ | All pinned packages publish Linux x86-64 wheels for CPython 3.14 (`langchain-core` and its dependencies are pure Python or ship cp314 wheels) |
-| Automated tests | ✅ | `pytest`: **203 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models) |
+| Automated tests | ✅ | `pytest`: **207 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models); the same suite plus the real-model evaluation runs in GitHub Actions CI |
 | Build step | ✅ | `HF_HUB_OFFLINE=0 python scripts/download_models.py`: int8 MiniLM (23 MB) + 4-bit CLIP (183 MB) |
 | Runtime needs no network | ✅ | Started with `HF_HUB_OFFLINE=1` and the proxy unreachable; models load from the build cache |
-| Port binding & health | ✅ | `/health` answers immediately; ready after ~1.6 s locally (Render's shared CPU: expect 10–25 s) |
+| Port binding & health | ✅ | `/health` answers immediately; ready after ~0.5 s locally from the prebuilt index (Render's shared CPU: expect a few seconds) |
 | End-to-end API | ✅ | [`scripts/smoke_test.py`](../scripts/smoke_test.py): **30/30 checks** (health, ready, UI, agent and guardrail settings, corpus incl. redacted service record, text search, cited answer, agent tool calls, compound question, refusal, prompt-injection block, PII refusal, no PII in service-record answers, text→image and image→image search, engine-bay diagram via the agent, 4 invalid uploads, path traversal, evaluation, `/docs`) |
-| Memory | ✅ | ~396 MB RSS after start-up with the agent loaded, ~397 MB after repeated compound agent queries (Windows; v0.2 without the agent: 428 MB locally, 489 MB reported by Render) |
+| Memory | ✅ | ~318 MB RSS at start-up from the prebuilt index with the agent loaded, ~322 MB after repeated agent chats, ~388 MB while the CLIP vision tower embeds an image, back to ~320 MB after it is released (Windows; v0.2 reported 489 MB on Render) |
 | Frontend ↔ backend | ✅ | Headless Edge: agent trace, verified citations, diagram answers, guardrail badges, evaluation and security dashboards, mobile layout |
-| Evaluation | ✅ | QA 39/39 (Recall@5 100%, groundedness 100%), security 23/23 (0% attack success, 0% PII leaks); p50 6.4 ms |
+| Evaluation | ✅ | QA 39/39 (Recall@5 100%, groundedness 100%), security 23/23 (0% attack success, 0% PII leaks); p50 6.6 ms |
 | Linux memory for v0.3 | ⚠️ not measured locally | No Linux/Docker environment was available; check `/ready` → `memory_rss_mb` after the deploy |
 | `docker build` | ⚠️ not run | Docker is not installed on the development machine |
 
@@ -33,13 +33,13 @@ Embeddings run on **ONNX Runtime** instead of PyTorch: MiniLM with int8 weights 
 
 | Configuration | RSS after start-up (local) | Render plan |
 | --- | --- | --- |
-| **v0.3 default: agent + text + image search, int8 MiniLM** | ~396 MB | **Free (512 MB)** |
+| **v0.3 default: agent + text + image search, int8 MiniLM, prebuilt index, vision tower idle** | ~320 MB | **Free (512 MB)** |
 | v0.3 with fp32 MiniLM (`DRIVEDOCS_TEXT_ONNX_FILE=onnx/model.onnx`) | ~463 MB | Free, little headroom |
 | Text only (`DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`) | ~250 MB | Free, large headroom |
 | Previous PyTorch stack, for comparison | 864 MB | needed Standard (2 GB, paid) |
 
 The int8 switch exists because LangChain adds ~37 MB and the v0.2 build already reported 489 MB on Render. After
-start-up the service calls `malloc_trim(0)` on Linux so memory freed by seeding is returned to the OS.
+start-up the service releases the CLIP vision tower (only needed to embed new images) and calls `malloc_trim(0)` on Linux so freed memory is returned to the OS. The build runs `scripts/build_demo_index.py`, so instances start from a ready index instead of embedding the samples.
 
 Extra safety settings in `render.yaml` for the small shared instance: one uvicorn worker, at most one inference at a
 time (`DRIVEDOCS_MAX_CONCURRENT_INFERENCE=1`), two ONNX threads, `MALLOC_ARENA_MAX=2`, 10 MB uploads and at most 100
@@ -87,15 +87,15 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
    * `Successfully installed … onnxruntime-1.31.0 … faiss-cpu-1.15.1 …`
    * `[*] Embedding backend: onnx; image search: True`
    * `[+] Xenova/all-MiniLM-L6-v2: 3 files, 23 MB …` and `[+] Xenova/clip-vit-base-patch32: 5 files, 183 MB …`
+   * `[+] Demo index: 5 documents, 40 chunks, 5 images in /opt/render/project/src/data/storage (…s)`
    * a "Build successful" message
-8. Then the runtime log should show:
+8. Then the runtime log should show (no "Ingested" lines: the index comes from the build):
    ```text
    Starting DriveDocs 0.3.0 (device=cpu, storage=ephemeral, image_search=True, provider=extractive)
    Uvicorn running on http://0.0.0.0:10000
    Loaded model Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx|onnx|text in …s
    Loaded model Xenova/clip-vit-base-patch32/onnx/text_model_q4.onnx+onnx/vision_model_q4.onnx|onnx|clip in …s
-   Ingested doc_… (pdf): 19 chunks, 4 images      (×5 sample files)
-   DriveDocs ready in … ms: 5 documents, 40 chunks, 5 images, storage=ephemeral
+   DriveDocs ready in … ms: 5 documents, 40 chunks, 5 images, storage=ephemeral, prebuilt index=True
    ```
    and the status becomes **Live**. The URL is at the top of the service page: `https://drivedocs.onrender.com` if
    the name is free, otherwise Render adds a suffix such as `https://drivedocs-ab12.onrender.com`.
@@ -107,6 +107,8 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
 
 | Symptom in the logs | Cause / fix |
 | --- | --- |
+| A push to `main` does not change the live site | **Settings → Build & Deploy → Auto-Deploy** is off (turn it on, or use **Manual Deploy → Deploy latest commit**), or the build failed (see **Events** for a red "Deploy failed" and open its log) |
+| `[!] Demo index build failed` / `Expected 5 ready documents` | A sample file is missing or unreadable in the build; the log line names it |
 | The build installs `torch` or `sentence-transformers` | Render is building the old code: push the new commit and use **Manual Deploy → Deploy latest commit** |
 | `Ran out of memory (used over 512MB)` | Set `DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`, or use a paid plan (§2) |
 | `OfflineModeIsEnabled` during the build | The build command lost its `HF_HUB_OFFLINE=0` prefix; restore it from `render.yaml` |
