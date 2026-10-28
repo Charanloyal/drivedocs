@@ -1,10 +1,11 @@
 """Build the demo document index at build time (run after scripts/download_models.py).
 
-Ingests the bundled sample documents into DRIVEDOCS_STORAGE_DIR and writes the registry, the FAISS indexes and the
-extracted images. On Render the build output is what every new instance starts from, so the server boots straight
-into a ready index: no re-embedding at start-up (faster cold start, lower peak memory) and the CLIP vision tower is
-not loaded until a visitor embeds an image. If the prebuilt index is missing or was built with other models, the
-service rebuilds or re-embeds it at start-up as before.
+Ingests the bundled sample documents into ``data/prebuilt/`` (DRIVEDOCS_PREBUILT_DIR) and writes the registry, the
+FAISS indexes and the extracted images. That directory is part of the project, so it ships with the build output on
+Render and in the Docker image. On start-up the service copies it into an empty DRIVEDOCS_STORAGE_DIR (wherever that
+points), so instances boot straight into a ready index: no embedding at start-up (faster cold start, lower peak memory)
+and the CLIP vision tower is not loaded until a visitor embeds an image. Without a prebuilt index, or if it was built
+with other models, the service indexes or re-embeds at start-up as before.
 
     python scripts/build_demo_index.py
 """
@@ -30,7 +31,9 @@ def main() -> int:
         print("[!] Refusing to build the demo index with the mock embedding backend.")
         return 2
     started = time.perf_counter()
-    storage = LocalStorage(config=settings)
+    # The index is written inside the project (data/prebuilt by default) so it always ships with the build output;
+    # the service copies it into DRIVEDOCS_STORAGE_DIR on start-up when that storage is empty.
+    storage = LocalStorage(root=settings.prebuilt_index_dir, config=settings)
     storage.ensure_dirs()
     # Start from an empty library, keeping placeholder files such as .gitkeep.
     storage.registry_path.unlink(missing_ok=True)

@@ -188,3 +188,25 @@ def test_build_demo_index_refuses_mock_backend():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.main() == 2  # the test suite runs on mock embeddings
+
+
+def test_prebuilt_index_is_restored_into_a_different_storage_root(make_service, tmp_path, monkeypatch):
+    from drivedocs.config import settings
+
+    prebuilt = tmp_path / "project" / "data" / "prebuilt"
+    built = make_service(root=prebuilt, seed=True)  # what scripts/build_demo_index.py produces
+    monkeypatch.setattr(settings, "prebuilt_index_dir", prebuilt)
+    # Runtime storage elsewhere (e.g. DRIVEDOCS_STORAGE_DIR outside the project, a Docker volume, a new disk).
+    runtime = make_service(root=tmp_path / "elsewhere" / "storage", seed=True)
+    assert "restore_prebuilt_index" in runtime.timings_ms and "seed_samples" not in runtime.timings_ms
+    assert runtime.list_documents().total_documents == built.list_documents().total_documents == 5
+    assert runtime.text_index.count() == built.text_index.count()
+    hits = runtime.search_text("wheel nut tightening torque", 1)
+    assert hits and hits[0].chunk.filename == "roadside_emergency_guide.txt"
+    image = runtime.image_index.images[0]
+    assert runtime.image_file(f"{image.image_id}.png") is not None  # image files were copied too
+    # An existing library is never overwritten, and seeding-disabled deployments get no demo data.
+    again = make_service(root=tmp_path / "elsewhere" / "storage", seed=True)
+    assert "restore_prebuilt_index" not in again.timings_ms
+    empty = make_service(root=tmp_path / "noseed", seed=False)
+    assert empty.list_documents().total_documents == 0

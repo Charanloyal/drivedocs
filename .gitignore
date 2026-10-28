@@ -47,3 +47,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Demo index built at deploy time (scripts/build_demo_index.py)
+data/prebuilt/

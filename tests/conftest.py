@@ -15,6 +15,8 @@ from pathlib import Path
 
 _TEST_STORAGE = Path(tempfile.mkdtemp(prefix="drivedocs_test_storage_"))
 os.environ["DRIVEDOCS_STORAGE_DIR"] = str(_TEST_STORAGE)
+# Never restore a locally built demo index (data/prebuilt) into test storage.
+os.environ["DRIVEDOCS_PREBUILT_DIR"] = str(_TEST_STORAGE / "_no_prebuilt_index")
 os.environ.setdefault("DRIVEDOCS_EMBEDDING_BACKEND", "mock")
 os.environ["DRIVEDOCS_PERSISTENT_STORAGE"] = "false"
 os.environ["DRIVEDOCS_READY_WAIT_SECONDS"] = "120"

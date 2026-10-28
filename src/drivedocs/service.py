@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -136,6 +137,8 @@ class DriveDocsService:
             self.phase = "loading_indexes"
             t0 = time.perf_counter()
             self.storage.ensure_dirs()
+            if self._restore_prebuilt_index():
+                self.timings_ms["restore_prebuilt_index"] = round((time.perf_counter() - t0) * 1000, 1)
             self._load_state()
             self.timings_ms["load_state"] = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -195,6 +198,33 @@ class DriveDocsService:
             if self.phase == "failed":
                 raise ServiceUnavailableError("The service failed to start. Check the server logs.")
             raise ServiceUnavailableError("The service is still starting (loading models/indexes). Retry shortly.")
+
+    def _restore_prebuilt_index(self) -> bool:
+        """Copy the build-time demo index into an empty storage root (no embedding at start-up).
+
+        Skipped when the library already has a registry, when demo seeding is disabled, or when no prebuilt index
+        exists. A prebuilt index made with other models is re-embedded by ``_reembed_if_model_changed``.
+        """
+        source = self.config.prebuilt_index_dir
+        if not self.config.seed_sample_data or self.storage.registry_path.exists():
+            return False
+        try:
+            if source.resolve() == self.storage.root.resolve():
+                return False
+        except OSError:
+            return False
+        if not (source / "documents.json").is_file():
+            return False
+        for sub in ("indexes", "images"):
+            src_dir = source / sub
+            if src_dir.is_dir():
+                for f in src_dir.iterdir():
+                    if f.is_file() and not f.name.startswith("."):
+                        shutil.copy2(f, getattr(self.storage, f"{sub}_dir") / f.name)
+        # The registry is copied last: it is what marks the library as present.
+        shutil.copy2(source / "documents.json", self.storage.registry_path)
+        logger.info("Restored the prebuilt demo index from %s", source.name)
+        return True
 
     def _load_state(self) -> None:
         payload = self.storage.load_registry()

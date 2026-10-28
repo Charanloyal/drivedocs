@@ -87,12 +87,13 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
    * `Successfully installed … onnxruntime-1.31.0 … faiss-cpu-1.15.1 …`
    * `[*] Embedding backend: onnx; image search: True`
    * `[+] Xenova/all-MiniLM-L6-v2: 3 files, 23 MB …` and `[+] Xenova/clip-vit-base-patch32: 5 files, 183 MB …`
-   * `[+] Demo index: 5 documents, 40 chunks, 5 images in /opt/render/project/src/data/storage (…s)`
+   * `[+] Demo index: 5 documents, 40 chunks, 5 images in /opt/render/project/src/data/prebuilt (…s)`
    * a "Build successful" message
 8. Then the runtime log should show (no "Ingested" lines: the index comes from the build):
    ```text
    Starting DriveDocs 0.3.0 (device=cpu, storage=ephemeral, image_search=True, provider=extractive)
    Uvicorn running on http://0.0.0.0:10000
+   Restored the prebuilt demo index from prebuilt
    Loaded model Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx|onnx|text in …s
    Loaded model Xenova/clip-vit-base-patch32/onnx/text_model_q4.onnx+onnx/vision_model_q4.onnx|onnx|clip in …s
    DriveDocs ready in … ms: 5 documents, 40 chunks, 5 images, storage=ephemeral, prebuilt index=True
@@ -108,6 +109,7 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
 | Symptom in the logs | Cause / fix |
 | --- | --- |
 | A push to `main` does not change the live site | **Settings → Build & Deploy → Auto-Deploy** is off (turn it on, or use **Manual Deploy → Deploy latest commit**), or the build failed (see **Events** for a red "Deploy failed" and open its log) |
+| `/ready` → `timings_ms` contains `seed_samples` (start-up indexing) instead of `restore_prebuilt_index` | The dashboard's **Build Command** lacks `&& python scripts/build_demo_index.py`. Services created in the dashboard (not from the Blueprint) do not pick up `buildCommand` changes from `render.yaml`; copy it from there |
 | `[!] Demo index build failed` / `Expected 5 ready documents` | A sample file is missing or unreadable in the build; the log line names it |
 | The build installs `torch` or `sentence-transformers` | Render is building the old code: push the new commit and use **Manual Deploy → Deploy latest commit** |
 | `Ran out of memory (used over 512MB)` | Set `DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`, or use a paid plan (§2) |

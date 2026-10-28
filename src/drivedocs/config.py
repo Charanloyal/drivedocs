@@ -174,6 +174,11 @@ class Settings:
             ],
         )
         self.reports_dir: Path = self.project_root / "reports"
+        # Demo index built at deploy time (scripts/build_demo_index.py). It lives inside the project so it always ships
+        # with the build output, whatever DRIVEDOCS_STORAGE_DIR points to; it is copied into an empty storage root.
+        self.prebuilt_index_dir: Path = self._resolve_path(
+            _env_str("DRIVEDOCS_PREBUILT_DIR", runtime_cfg.get("prebuilt_index_dir", "data/prebuilt"))
+        )
         self.security_dir: Path = self.project_root / "data" / "security"
 
         # Security guardrails
