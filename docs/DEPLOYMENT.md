@@ -14,7 +14,7 @@ A [`Dockerfile`](../Dockerfile) is provided for other container platforms.
 | --- | --- | --- |
 | Clean production install | ✅ | Fresh virtualenv, `pip install -r requirements.txt` (adds `langchain-core 1.7.0`), **no PyTorch** |
 | Render's platform can install every dependency | ✅ | All pinned packages publish Linux x86-64 wheels for CPython 3.14 (`langchain-core` and its dependencies are pure Python or ship cp314 wheels) |
-| Automated tests | ✅ | `pytest`: **207 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models); the same suite plus the real-model evaluation runs in GitHub Actions CI |
+| Automated tests | ✅ | `pytest`: **208 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models); the same suite plus the real-model evaluation runs in GitHub Actions CI |
 | Build step | ✅ | `HF_HUB_OFFLINE=0 python scripts/download_models.py`: int8 MiniLM (23 MB) + 4-bit CLIP (183 MB) |
 | Runtime needs no network | ✅ | Started with `HF_HUB_OFFLINE=1` and the proxy unreachable; models load from the build cache |
 | Port binding & health | ✅ | `/health` answers immediately; ready after ~0.5 s locally from the prebuilt index (Render's shared CPU: expect a few seconds) |

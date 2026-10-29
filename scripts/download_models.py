@@ -1,6 +1,6 @@
 """Pre-download the embedding models into the Hugging Face cache (run at build time).
 
-With the default ONNX backend only the tokenizer/config files and the selected ONNX graphs are fetched (~170 MB).
+With the default ONNX backend only the tokenizer/config files and the selected ONNX graphs are fetched (~210 MB).
 With DRIVEDOCS_EMBEDDING_BACKEND=transformers the PyTorch weights are fetched instead (~670 MB; TensorFlow/Flax/ONNX
 files skipped). Once the cache is populated the service can run with HF_HUB_OFFLINE=1 and never downloads on boot.
 

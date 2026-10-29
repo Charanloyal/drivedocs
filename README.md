@@ -10,11 +10,14 @@ retrieval, with every citation verified and security guardrails against prompt i
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-MiniLM_%2B_CLIP-FFD21E?logo=huggingface&logoColor=black)](src/drivedocs/onnx_models.py)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API_%2B_UI-009688?logo=fastapi&logoColor=white)](src/drivedocs/api.py)
 [![CI](https://github.com/Charanloyal/drivedocs/actions/workflows/ci.yml/badge.svg)](https://github.com/Charanloyal/drivedocs/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-207_passing-brightgreen)](tests/)
-[![Recall@5](https://img.shields.io/badge/Recall%405-100%25-brightgreen)](reports/EVALUATION.md)
-[![Groundedness](https://img.shields.io/badge/groundedness-100%25-brightgreen)](reports/EVALUATION.md)
-[![Security](https://img.shields.io/badge/injection_%26_PII_tests-23%2F23-brightgreen)](reports/EVALUATION.md#security-prompt-injection-and-pii-leakage)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+**Status:** working demo (v0.3), single-process, no authentication. **All documents are synthetic:** the corpus is
+about a fictional car (the Aurora S5) and the service record contains fictional personal data. **The public demo does
+not call an LLM:** it plans with a deterministic offline LangChain chat model (rule-based router) and writes extractive
+answers; GPT/Gemini planning and answer writing are optional and need your own API key. The evaluation sets were
+written together with the corpus, so the scores below show that the pipeline works end to end on this corpus, not how
+it performs on real manuals.
 
 ![DriveDocs AI: the LangChain agent splits a compound question, calls the FAISS search tools and returns a verified answer](docs/screenshots/agent.png)
 
@@ -25,8 +28,10 @@ retrieval, with every citation verified and security guardrails against prompt i
 
 The demo answers questions about the bundled documents of a fictional car, the **Aurora S5**: a 6-page owner's
 manual PDF with 4 diagrams (warning lights, tire placard, jump-start cables, fuse box), a maintenance schedule, a
-roadside emergency guide, a dealer service record with (fictional) personal data, and an engine-bay diagram. They are
-indexed during the deploy build, so every instance starts with them ready. Try:
+roadside emergency guide, a dealer service record with (fictional) personal data, and an engine-bay diagram. The
+deploy build prebuilds their index (`scripts/build_demo_index.py`) and the service restores it at start-up; if no
+prebuilt index is found, the service indexes the samples itself when the library is empty. The demo runs with the
+offline router planner and extractive answers (no LLM, no API key). Try:
 
 * *What does a flashing check engine light indicate?* (text + the warning-light diagram)
 * *How often should brake fluid be replaced and what type of brake fluid should I use?* (the agent splits it in two)
@@ -35,7 +40,8 @@ indexed during the deploy build, so every instance starts with them ready. Try:
   (guardrails)
 
 The demo has **no authentication**, and uploads go to Render's ephemeral disk: they are visible to everyone and deleted
-on restart. The free instance sleeps after 15 idle minutes, so the first visit can take about a minute.
+on restart. The free instance sleeps after 15 idle minutes, so the first visit can take about a minute (on
+2026-10-29 the woken instance's `/ready` reported a 27 s start-up, most of it indexing the samples at runtime).
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Charanloyal/drivedocs)
 
@@ -46,9 +52,9 @@ on restart. The free instance sleeps after 15 idle minutes, so the first visit c
 | **LangChain agent** | A tool-calling loop (`BaseChatModel.bind_tools` → `AIMessage.tool_calls` → `StructuredTool` → `ToolMessage`) over two tools: `search_manual_text` (MiniLM + FAISS) and `search_manual_diagrams` (CLIP + FAISS). It decomposes compound questions, rewrites location questions into diagram queries, and records a trace of every tool call. Planner: GPT/Gemini via `langchain-openai` / `langchain-google-genai` when a key is set, otherwise a deterministic offline LangChain chat model, so the public demo needs no API key |
 | **Vehicle-manual text and diagrams** | PDFs are parsed per page with embedded figures extracted; passages go to a MiniLM index and diagrams to a CLIP index. CLIP finds warning-light charts, fuse-box layouts and engine-bay diagrams from a text question |
 | **Verified, grounded answers** | Answers quote retrieved evidence with `[Source: file, Page N]` tags; each tag is checked against the document registry, the page and the retrieved passage, and unverifiable tags are removed |
-| **Evaluation** | **Recall@5 = 100%** and **groundedness = 100%** on a curated 39-question QA set (text, visual, compound, out-of-corpus and near-domain negatives); full report in [reports/EVALUATION.md](reports/EVALUATION.md) |
-| **Security tests** | 23 adversarial cases: direct prompt injection, indirect injection through a poisoned document, and PII-extraction attempts against a service record. **0% attack success, 0% PII leakage**, and no over-blocking of legitimate questions |
-| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP), demo index built at deploy time, CLIP vision tower unloaded when idle: **~320 MB RSS** with the agent loaded, 0.5 s start-up, p50 answer latency ~6 ms |
+| **Evaluation** | Recall@5 = 100% and groundedness = 100% on a curated 39-question QA set (text, visual, compound, out-of-corpus and near-domain negatives) over the synthetic corpus; in-sample, so indicative only. Full report in [reports/EVALUATION.md](reports/EVALUATION.md) |
+| **Security tests** | 23 adversarial cases written for this corpus: direct prompt injection, indirect injection through a poisoned document, and PII-extraction attempts against a service record. 0% attack success and 0% PII leakage on these cases, with no over-blocking of the 3 benign controls; the guardrails are pattern-based |
+| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP), prebuilt demo index, CLIP vision tower unloaded when idle: ~320 MB RSS with the agent loaded (the live instance's `/ready` reported 317 MB). Locally (Windows laptop CPU) start-up from the prebuilt index takes ~0.5 s and the warm p50 answer latency is ~6.6 ms; that path makes no LLM call |
 
 | Workspace | Diagram answer (CLIP via the agent) |
 | --- | --- |
@@ -136,6 +142,9 @@ writes [`reports/EVALUATION.md`](reports/EVALUATION.md) and `reports/evaluation_
 Evaluation tab). Definitions: [docs/EVALUATION_METHODOLOGY.md](docs/EVALUATION_METHODOLOGY.md).
 
 <!-- EVAL_TABLE_START -->
+Source: [`reports/evaluation_report.json`](reports/evaluation_report.json) (`summary`, `comparison`,
+`security.summary`), generated by `scripts/run_eval.py`; CI re-runs it with `--strict` on every push.
+
 **QA set** ([`data/sample/evaluation_set.json`](data/sample/evaluation_set.json)): 39 questions (27 text, 6 visual,
 2 of them compound, 3 out-of-corpus, 3 near-domain hard negatives). ONNX backend, extractive answers, CPU.
 
@@ -297,7 +306,7 @@ Abbreviated response:
 ## Testing
 
 ```bash
-pytest                                               # 207 tests; mock embeddings, no downloads, temp storage
+pytest                                               # 208 tests; mock embeddings, no downloads, temp storage
 python scripts/run_eval.py --strict                  # QA (Recall@5, groundedness) + security suite, real models
 python scripts/smoke_test.py http://127.0.0.1:8000   # 30 end-to-end checks against a running instance
 ```
@@ -307,8 +316,9 @@ retrievers/tools, scripted LLM planners, planner failure fallback), the guardrai
 manual text, injection patterns, query screening, poisoned-document handling), the groundedness metric and security
 suite, parsing (PDF/MD/TXT/images, malformed files, encodings, decompression bombs), chunking, FAISS persistence,
 retrieval rules and fusion, citation verification, extractive and LLM generation (mocked HTTP), model loading,
-persistence and crash recovery, and API behaviour (errors, size limits, path traversal, security headers). Tests marked
-`real_models` run only when the model weights are already cached.
+persistence and crash recovery, and API behaviour (errors, size limits, path traversal, security headers). The 9 tests
+marked `real_models` run only when the model weights are already cached (`pytest -m real_models`); otherwise they are
+skipped. CI runs both, plus `run_eval.py --strict`.
 
 ## Deployment
 
@@ -324,7 +334,8 @@ Start:  uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --time
 Health: /health   (readiness detail at /ready)
 ```
 
-* **Memory** (measured locally with the Render settings):
+* **Memory** (measured locally on Windows with the Render settings via the `memory_rss_mb` field of `/ready`; no
+  committed benchmark script, and Linux RSS on Render will differ somewhat):
 
   | State | RSS |
   | --- | --- |
@@ -332,7 +343,7 @@ Health: /health   (readiness detail at /ready)
   | After repeated agent chats (text and diagram search) | ~322 MB |
   | While embedding an uploaded image (CLIP vision tower loaded) | ~388 MB |
   | 5 minutes later (vision tower released) | ~320 MB |
-  | *v0.2 on Render for comparison (fp32 MiniLM, runtime seeding, no agent)* | *489 MB* |
+  | *v0.2 on Render for comparison (fp32 MiniLM, runtime seeding, no agent; reported on Render, not reproducible from this repo)* | *489 MB* |
 
   The levers: int8 MiniLM (−65 MB vs. fp32, identical evaluation results), the demo index built during the deploy
   build (no embedding at start-up), and the CLIP vision tower loaded only to embed new images and released after
