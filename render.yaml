@@ -43,7 +43,7 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      # Models (~270 MB of ONNX files) are downloaded during the build into the project directory, which Render keeps
+      # Models (~210 MB of ONNX files) are downloaded during the build into the project directory, which Render keeps
       # for runtime. Render also applies these variables to the build, so the build command overrides HF_HUB_OFFLINE.
       - key: HF_HOME
         value: /opt/render/project/src/.hf-cache
