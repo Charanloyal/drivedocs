@@ -161,7 +161,7 @@ async function loadReady() {
 
 function renderStatusList(data) {
   const list = clear($("#statusList"));
-  const labels = { storage: "Storage", registry: "Document registry", text_index: "Text index", image_index: "Image index", text_model: "Text model (MiniLM)", image_model: "Image model (CLIP)" };
+  const labels = { storage: "Storage", registry: "Document registry", text_index: "Text index", image_index: "Image index", text_model: "Text model (MiniLM)", image_model: "Image model (CLIP)", prebuilt_index: "Prebuilt demo index" };
   for (const [key, label] of Object.entries(labels)) {
     const c = data.components[key];
     if (!c) continue;

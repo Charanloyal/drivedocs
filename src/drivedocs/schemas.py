@@ -350,6 +350,7 @@ class SystemInfoResponse(BaseModel):
     thresholds: Dict[str, float]
     agent: Dict[str, Any] = Field(default_factory=dict)
     security: Dict[str, bool] = Field(default_factory=dict)
+    commit: Optional[str] = Field(None, description="Deployed git commit (short SHA) when the platform provides it")
     authentication: bool = False
 
 

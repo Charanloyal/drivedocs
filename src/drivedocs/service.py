@@ -121,6 +121,7 @@ class DriveDocsService:
         self.consistency_problems: List[str] = []
         self.timings_ms: Dict[str, float] = {}
         self.registry_loaded = False
+        self.prebuilt_status = "not checked"
 
     # Lifecycle -------------------------------------------------------------------------------------------------
 
@@ -139,6 +140,8 @@ class DriveDocsService:
             self.storage.ensure_dirs()
             if self._restore_prebuilt_index():
                 self.timings_ms["restore_prebuilt_index"] = round((time.perf_counter() - t0) * 1000, 1)
+            else:
+                logger.info("Prebuilt demo index %s", self.prebuilt_status)
             self._load_state()
             self.timings_ms["load_state"] = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -206,14 +209,24 @@ class DriveDocsService:
         exists. A prebuilt index made with other models is re-embedded by ``_reembed_if_model_changed``.
         """
         source = self.config.prebuilt_index_dir
-        if not self.config.seed_sample_data or self.storage.registry_path.exists():
+        if not self.config.seed_sample_data:
+            self.prebuilt_status = "skipped: demo seeding disabled"
+            return False
+        if self.storage.registry_path.exists():
+            self.prebuilt_status = "skipped: storage already has a library"
             return False
         try:
             if source.resolve() == self.storage.root.resolve():
+                self.prebuilt_status = "skipped: storage is the prebuilt directory"
                 return False
         except OSError:
             return False
         if not (source / "documents.json").is_file():
+            label = self._project_relative(source)
+            self.prebuilt_status = (
+                f"not found: {label}/ exists but has no documents.json" if source.is_dir()
+                else f"not found: {label}/ does not exist (run scripts/build_demo_index.py in the build)"
+            )
             return False
         for sub in ("indexes", "images"):
             src_dir = source / sub
@@ -223,8 +236,16 @@ class DriveDocsService:
                         shutil.copy2(f, getattr(self.storage, f"{sub}_dir") / f.name)
         # The registry is copied last: it is what marks the library as present.
         shutil.copy2(source / "documents.json", self.storage.registry_path)
+        self.prebuilt_status = f"restored from {self._project_relative(source)}/"
         logger.info("Restored the prebuilt demo index from %s", source.name)
         return True
+
+    def _project_relative(self, path: Path) -> str:
+        """A path for public status messages: relative to the project, never an absolute filesystem path."""
+        try:
+            return path.resolve().relative_to(self.config.project_root.resolve()).as_posix()
+        except (OSError, ValueError):
+            return path.name
 
     def _load_state(self) -> None:
         payload = self.storage.load_registry()
@@ -550,6 +571,7 @@ class DriveDocsService:
             ),
             "text_model": model_status(self.text_model, text_state),
             "image_model": self._image_model_status(model_status(self.image_model, image_state, self.image_index.enabled)),
+            "prebuilt_index": ComponentStatus(ready=True, detail=self.prebuilt_status),
         }
         essential = ("storage", "registry", "text_index", "text_model")
         ready = self.phase == "ready" and all(components[name].ready for name in essential)
@@ -598,6 +620,7 @@ class DriveDocsService:
                 "block_pii_requests": self.config.block_pii_requests,
                 "detect_prompt_injection": self.config.detect_prompt_injection,
             },
+            commit=(os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "")[:7] or None,
         )
 
     def evaluation_report(self) -> Optional[dict]:

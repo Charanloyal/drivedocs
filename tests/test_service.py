@@ -199,6 +199,7 @@ def test_prebuilt_index_is_restored_into_a_different_storage_root(make_service, 
     # Runtime storage elsewhere (e.g. DRIVEDOCS_STORAGE_DIR outside the project, a Docker volume, a new disk).
     runtime = make_service(root=tmp_path / "elsewhere" / "storage", seed=True)
     assert "restore_prebuilt_index" in runtime.timings_ms and "seed_samples" not in runtime.timings_ms
+    assert runtime.readiness().components["prebuilt_index"].detail.startswith("restored from")
     assert runtime.list_documents().total_documents == built.list_documents().total_documents == 5
     assert runtime.text_index.count() == built.text_index.count()
     hits = runtime.search_text("wheel nut tightening torque", 1)
@@ -208,5 +209,10 @@ def test_prebuilt_index_is_restored_into_a_different_storage_root(make_service, 
     # An existing library is never overwritten, and seeding-disabled deployments get no demo data.
     again = make_service(root=tmp_path / "elsewhere" / "storage", seed=True)
     assert "restore_prebuilt_index" not in again.timings_ms
+    assert again.readiness().components["prebuilt_index"].detail == "skipped: storage already has a library"
+    monkeypatch.setattr(settings, "prebuilt_index_dir", tmp_path / "missing")
+    fresh = make_service(root=tmp_path / "fresh", seed=True)
+    detail = fresh.readiness().components["prebuilt_index"].detail
+    assert detail.startswith("not found: missing/ does not exist") and str(tmp_path) not in detail
     empty = make_service(root=tmp_path / "noseed", seed=False)
     assert empty.list_documents().total_documents == 0
