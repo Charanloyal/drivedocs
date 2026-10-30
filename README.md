@@ -322,9 +322,10 @@ skipped. CI runs both, plus `run_eval.py --strict`.
 
 ## Deployment
 
-Render is the primary target: one **Free** web service defined in [`render.yaml`](render.yaml) runs the API and UI;
-pushes to `main` redeploy it (when Auto-Deploy is on). [GitHub Actions CI](.github/workflows/ci.yml) runs the tests,
-the real-model evaluation and the security suite on every push and pull request.
+Render is the primary target: one **Free** web service defined in [`render.yaml`](render.yaml) runs the API and UI.
+[GitHub Actions CI](.github/workflows/ci.yml) runs the tests, the real-model evaluation and the security suite on every
+push and pull request, and Render deploys a push to `main` only after CI passes (`autoDeployTrigger: checksPass`,
+applied when the Render Blueprint syncs; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#keeping-render-in-sync-with-renderyaml)).
 
 ```text
 Python: 3.14.7 (PYTHON_VERSION)

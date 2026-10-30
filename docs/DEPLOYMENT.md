@@ -4,9 +4,25 @@ DriveDocs AI is one FastAPI process that serves the REST API and the web UI. It 
 Service on the Free plan**, defined by [`render.yaml`](../render.yaml): no database, worker or extra service is needed.
 A [`Dockerfile`](../Dockerfile) is provided for other container platforms.
 
-> **Status: deployed** at <https://drivedocs-3xr4.onrender.com>. The v0.3 changes (LangChain agent, vehicle-manual
-> corpus, guardrails) deploy automatically when they are pushed to `main`; afterwards run the checks in
+> **Status: deployed** at <https://drivedocs-3xr4.onrender.com> (v0.3). The service is managed by the Render
+> Blueprint in [`render.yaml`](../render.yaml): once the Blueprint is synced (see
+> [Keeping Render in sync](#keeping-render-in-sync-with-renderyaml)), every push to `main` deploys automatically
+> **after the GitHub Actions CI checks pass**. Afterwards run the checks in
 > [§5](#5-verify-the-public-website-after-each-deploy).
+
+### Keeping Render in sync with render.yaml
+
+`render.yaml` is the source of truth for the build command, start command, environment variables and the auto-deploy
+mode. Render applies it only when the **Blueprint syncs**:
+
+* **Automatic sync on** (the default): every push to `main` that changes `render.yaml` is applied.
+* **Automatic sync off:** changes are *not* applied, and the dashboard keeps showing the old build command. Open
+  Render → **Blueprints** → the drivedocs Blueprint → **Manual Sync**, and turn automatic sync back on.
+
+After a sync, `autoDeployTrigger: checksPass` makes Render wait for both CI jobs (unit/API tests, then the real-model
+evaluation and security suite) on each new commit, and deploy only if they all pass. A red CI run blocks the deploy;
+a commit message containing `[skip render]` skips it. Dashboard edits that conflict with `render.yaml` are
+overwritten by the next sync.
 
 ## 1. What was verified before deployment (v0.3)
 
@@ -108,8 +124,9 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
 
 | Symptom in the logs | Cause / fix |
 | --- | --- |
-| A push to `main` does not change the live site | **Settings → Build & Deploy → Auto-Deploy** is off (turn it on, or use **Manual Deploy → Deploy latest commit**), or the build failed (see **Events** for a red "Deploy failed" and open its log) |
-| `/ready` → `timings_ms` contains `seed_samples` (start-up indexing) instead of `restore_prebuilt_index` | The dashboard's **Build Command** lacks `&& python scripts/build_demo_index.py`. Services created in the dashboard (not from the Blueprint) do not pick up `buildCommand` changes from `render.yaml`; copy it from there |
+| A push to `main` does not change the live site | 1) **CI** on that commit is red or still running (GitHub → Actions): `checksPass` deploys only after it passes. 2) The Blueprint was never synced, so the service still has Auto-Deploy off: run **Blueprints → Manual Sync**. 3) The build failed: **Events** shows a red "Deploy failed"; open its log. **Manual Deploy → Deploy latest commit** always works as a fallback |
+| The dashboard's Build Command or environment differs from `render.yaml` | Automatic Blueprint sync is off: **Blueprints → drivedocs → Manual Sync** |
+| `/ready` → `prebuilt_index` says "not found" and `timings_ms` contains `seed_samples` | The build did not run `scripts/build_demo_index.py` (old build command): sync the Blueprint. The site still works; it just indexes the samples at start-up (~20 s on the Free plan) |
 | `[!] Demo index build failed` / `Expected 5 ready documents` | A sample file is missing or unreadable in the build; the log line names it |
 | The build installs `torch` or `sentence-transformers` | Render is building the old code: push the new commit and use **Manual Deploy → Deploy latest commit** |
 | `Ran out of memory (used over 512MB)` | Set `DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`, or use a paid plan (§2) |

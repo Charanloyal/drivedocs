@@ -19,6 +19,9 @@ services:
     plan: free
     region: oregon
     branch: main
+    # Deploy each push to `main` only after the GitHub Actions CI checks (tests, real-model evaluation and security
+    # suite) pass. Applied to the service when the Blueprint syncs.
+    autoDeployTrigger: checksPass
     buildCommand: >-
       pip install --upgrade pip &&
       pip install -r requirements.txt &&
