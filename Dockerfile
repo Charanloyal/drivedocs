@@ -33,8 +33,8 @@ COPY scripts/download_models.py scripts/build_demo_index.py ./scripts/
 # Build with --build-arg ENABLE_IMAGE_SEARCH=false for a text-only image (~0.25 GB RSS at runtime).
 ARG ENABLE_IMAGE_SEARCH=true
 ENV DRIVEDOCS_ENABLE_IMAGE_SEARCH=${ENABLE_IMAGE_SEARCH}
+# download_models.py also builds the prebuilt demo index (data/prebuilt) for a fast first start.
 RUN python scripts/download_models.py \
-    && HF_HUB_OFFLINE=1 python scripts/build_demo_index.py \
     && mkdir -p /data/drivedocs \
     && chown -R appuser:appuser /data /app/.hf-cache
 ENV HF_HUB_OFFLINE=1

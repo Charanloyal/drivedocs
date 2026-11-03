@@ -63,13 +63,10 @@ jobs:
         with:
           path: .hf-cache
           key: hf-${{ hashFiles('configs/config.yaml') }}
-      - name: Download models
-        run: python scripts/download_models.py
-      - name: Build the demo index (as the Render build does)
-        env:
-          HF_HUB_OFFLINE: "1"
-          DRIVEDOCS_STORAGE_DIR: ${{ runner.temp }}/drivedocs-storage
-        run: python scripts/build_demo_index.py
+      - name: Download models and build the demo index (as the Render build does)
+        run: |
+          python scripts/download_models.py
+          test -f data/prebuilt/documents.json
       - name: Real-model tests
         env:
           HF_HUB_OFFLINE: "1"

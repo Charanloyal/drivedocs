@@ -9,6 +9,7 @@ files skipped). Once the cache is populated the service can run with HF_HUB_OFFL
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -55,6 +56,35 @@ def fetch_snapshot(repo_id: str) -> None:
     _report(repo_id, [str(p) for p in Path(path).rglob("*") if p.is_file()], started)
 
 
+def build_demo_index() -> int:
+    """Build the prebuilt demo index right after the download (see scripts/build_demo_index.py).
+
+    Doing it here means any build command that prepares the models also ships the index, including deployments whose
+    dashboard build command predates scripts/build_demo_index.py. Skipped with DRIVEDOCS_SKIP_DEMO_INDEX=true or
+    when demo seeding is disabled. A failure is reported but never fails the build: the service then indexes the
+    samples at start-up instead.
+    """
+    if os.getenv("DRIVEDOCS_SKIP_DEMO_INDEX", "").strip().lower() in {"1", "true", "yes", "on"}:
+        print("[=] DRIVEDOCS_SKIP_DEMO_INDEX is set: not building the demo index.")
+        return 0
+    if not settings.seed_sample_data:
+        print("[=] Demo seeding is disabled: not building the demo index.")
+        return 0
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("build_demo_index", Path(__file__).with_name("build_demo_index.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    try:
+        status = module.main()
+    except Exception as exc:  # the index is an optimisation; the runtime can rebuild it
+        print(f"[!] Demo index build failed ({type(exc).__name__}: {exc}); the service will index at start-up.")
+        return 0
+    if status:
+        print("[!] Demo index build did not complete; the service will index the samples at start-up.")
+    return 0
+
+
 def main() -> int:
     backend = settings.embedding_backend
     print(f"[*] Embedding backend: {backend}; image search: {settings.enable_image_search}", flush=True)
@@ -69,11 +99,11 @@ def main() -> int:
                 ["tokenizer.json", "config.json", "preprocessor_config.json",
                  settings.image_onnx_text_file, settings.image_onnx_vision_file],
             )
-        return 0
-    fetch_snapshot(settings.text_model_name)
-    if settings.enable_image_search:
-        fetch_snapshot(settings.image_model_name)
-    return 0
+    else:
+        fetch_snapshot(settings.text_model_name)
+        if settings.enable_image_search:
+            fetch_snapshot(settings.image_model_name)
+    return build_demo_index()
 
 
 if __name__ == "__main__":

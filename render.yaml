@@ -26,8 +26,8 @@ services:
       pip install --upgrade pip &&
       pip install -r requirements.txt &&
       pip install --no-deps -e . &&
-      HF_HUB_OFFLINE=0 python scripts/download_models.py &&
-      python scripts/build_demo_index.py
+      HF_HUB_OFFLINE=0 python scripts/download_models.py
+    # download_models.py also builds the prebuilt demo index (data/prebuilt) after downloading the models.
     # Single worker: every worker would load its own copy of the models. No --reload in production.
     startCommand: uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
     # /health never loads models: 200 while starting/ready, 503 only if start-up failed (so a broken deploy fails).

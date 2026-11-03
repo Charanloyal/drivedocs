@@ -30,11 +30,11 @@ overwritten by the next sync.
 | --- | --- | --- |
 | Clean production install | ✅ | Fresh virtualenv, `pip install -r requirements.txt` (adds `langchain-core 1.7.0`), **no PyTorch** |
 | Render's platform can install every dependency | ✅ | All pinned packages publish Linux x86-64 wheels for CPython 3.14 (`langchain-core` and its dependencies are pure Python or ship cp314 wheels) |
-| Automated tests | ✅ | `pytest`: **208 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models); the same suite plus the real-model evaluation runs in GitHub Actions CI |
+| Automated tests | ✅ | `pytest`: **226 passed** (mock embeddings, incl. 9 `real_models` tests against the cached ONNX models); the same suite plus the real-model evaluation runs in GitHub Actions CI |
 | Build step | ✅ | `HF_HUB_OFFLINE=0 python scripts/download_models.py`: int8 MiniLM (23 MB) + 4-bit CLIP (183 MB) |
 | Runtime needs no network | ✅ | Started with `HF_HUB_OFFLINE=1` and the proxy unreachable; models load from the build cache |
 | Port binding & health | ✅ | `/health` answers immediately; ready after ~0.5 s locally from the prebuilt index (Render's shared CPU: expect a few seconds) |
-| End-to-end API | ✅ | [`scripts/smoke_test.py`](../scripts/smoke_test.py): **30/30 checks** (health, ready, UI, agent and guardrail settings, corpus incl. redacted service record, text search, cited answer, agent tool calls, compound question, refusal, prompt-injection block, PII refusal, no PII in service-record answers, text→image and image→image search, engine-bay diagram via the agent, 4 invalid uploads, path traversal, evaluation, `/docs`) |
+| End-to-end API | ✅ | [`scripts/smoke_test.py`](../scripts/smoke_test.py): **32/32 checks** (health, ready, UI, agent and guardrail settings, corpus incl. redacted service record, text search, cited answer, agent tool calls, compound question, refusal, prompt-injection block, PII refusal, no PII in service-record answers, text→image and image→image search, engine-bay diagram via the agent, 4 invalid uploads, path traversal, evaluation, `/docs`) |
 | Memory | ✅ | ~318 MB RSS at start-up from the prebuilt index with the agent loaded, ~322 MB after repeated agent chats, ~388 MB while the CLIP vision tower embeds an image, back to ~320 MB after it is released (Windows; v0.2 reported 489 MB on Render) |
 | Frontend ↔ backend | ✅ | Headless Edge: agent trace, verified citations, diagram answers, guardrail badges, evaluation and security dashboards, mobile layout |
 | Evaluation | ✅ | QA 39/39 (Recall@5 100%, groundedness 100%), security 23/23 (0% attack success, 0% PII leaks); p50 6.6 ms |
@@ -55,7 +55,9 @@ Embeddings run on **ONNX Runtime** instead of PyTorch: MiniLM with int8 weights 
 | Previous PyTorch stack, for comparison | 864 MB | needed Standard (2 GB, paid) |
 
 The int8 switch exists because LangChain adds ~37 MB and the v0.2 build already reported 489 MB on Render. After
-start-up the service releases the CLIP vision tower (only needed to embed new images) and calls `malloc_trim(0)` on Linux so freed memory is returned to the OS. The build runs `scripts/build_demo_index.py`, so instances start from a ready index instead of embedding the samples.
+start-up the service releases the CLIP vision tower (only needed to embed new images) and calls `malloc_trim(0)` on Linux so freed memory is returned to the OS. The build's
+`scripts/download_models.py` also builds the demo index (`data/prebuilt`), so instances start from a ready index
+instead of embedding the samples, with any build command that downloads the models.
 
 Extra safety settings in `render.yaml` for the small shared instance: one uvicorn worker, at most one inference at a
 time (`DRIVEDOCS_MAX_CONCURRENT_INFERENCE=1`), two ONNX threads, `MALLOC_ARENA_MAX=2`, 10 MB uploads and at most 100
@@ -126,7 +128,8 @@ authentication and that uploads are deleted on restart (`/system/info` → `stor
 | --- | --- |
 | A push to `main` does not change the live site | 1) **CI** on that commit is red or still running (GitHub → Actions): `checksPass` deploys only after it passes. 2) The Blueprint was never synced, so the service still has Auto-Deploy off: run **Blueprints → Manual Sync**. 3) The build failed: **Events** shows a red "Deploy failed"; open its log. **Manual Deploy → Deploy latest commit** always works as a fallback |
 | The dashboard's Build Command or environment differs from `render.yaml` | Automatic Blueprint sync is off: **Blueprints → drivedocs → Manual Sync** |
-| `/ready` → `prebuilt_index` says "not found" and `timings_ms` contains `seed_samples` | The build did not run `scripts/build_demo_index.py` (old build command): sync the Blueprint. The site still works; it just indexes the samples at start-up (~20 s on the Free plan) |
+| `/ready` → `prebuilt_index` says "not found" and `timings_ms` contains `seed_samples` | The build did not run `scripts/download_models.py` with this code (it builds the index after the models), or the index build failed: look for `[+] Demo index:` or `[!] Demo index build` in the build log. The site still works; it just indexes the samples at start-up (~20 s on the Free plan) |
+| `429 rate_limited` for many visitors at once | All requests appear to come from one address: check `DRIVEDOCS_TRUST_PROXY_HEADERS` (on by default on Render) or raise the per-minute limits |
 | `[!] Demo index build failed` / `Expected 5 ready documents` | A sample file is missing or unreadable in the build; the log line names it |
 | The build installs `torch` or `sentence-transformers` | Render is building the old code: push the new commit and use **Manual Deploy → Deploy latest commit** |
 | `Ran out of memory (used over 512MB)` | Set `DRIVEDOCS_ENABLE_IMAGE_SEARCH=false`, or use a paid plan (§2) |
@@ -145,7 +148,7 @@ From the repository folder (standard library only; waits up to 4 minutes for a s
 python scripts/smoke_test.py https://drivedocs-3xr4.onrender.com
 ```
 
-All checks must pass (`30/30 checks passed`). Then check the UI by hand:
+All checks must pass (`32/32 checks passed`). Then check the UI by hand:
 
 1. Open <https://drivedocs-3xr4.onrender.com/>. The status pill turns green ("Ready · 40 chunks"); the status card
    lists "Agent (LangChain): on" and "Guardrails: 3/3 on".
