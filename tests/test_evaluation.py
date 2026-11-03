@@ -143,3 +143,31 @@ def test_security_suite_detects_leaks_and_behaviour():
     assert report.summary["attack_success_rate"] == 0.5
     assert report.summary["pii_leak_rate"] == 0.25
     assert report.summary["benign_answer_rate"] == 1.0
+
+
+def test_heldout_section_is_rendered_separately():
+    from drivedocs.evaluation import BenchmarkReport, render_markdown_report
+
+    q = EvaluationQuery(id="h1", query="held out?", modality="text", relevant_filenames=["a.pdf"])
+    res = DriveDocsEvaluator(StubRetriever([_result("a.pdf", 1, 1)]),
+                             StubGenerator(ChatResponse(answer="x [Source: a.pdf, Page 1]",
+                                                        citations=[Citation(filename="a.pdf", page_number=1)]))
+                             ).evaluate_query(q)
+    env = {"text_model": "t", "image_model": "i", "provider": "extractive", "answer_path": "direct", "device": "cpu",
+           "k_text": 5, "k_images": 5, "answer_k_text": 4, "answer_k_images": 2, "chunk_size": 500,
+           "chunk_overlap": 100, "thresholds": {}, "python": "3", "platform": "x"}
+    summary = {k: None for k in ("text_recall_at_k", "text_precision_at_k", "text_mrr", "image_recall_at_k", "image_mrr",
+                                 "recall_at_k", "hybrid_document_mrr", "groundedness", "claim_groundedness",
+                                 "citation_precision", "citation_verification_rate", "cited_claim_lexical_support",
+                                 "fact_coverage", "answer_rate", "negative_rejection_rate", "hard_negative_handling_rate",
+                                 "latency_mean_ms", "latency_p50_ms", "latency_p95_ms")}
+    summary["pass_rate"] = 0.5
+    dataset = {"path": "x.json", "size": 1, "text_queries": 1, "visual_queries": 0, "compound_queries": 0,
+               "negative_queries": 0, "hard_negative_queries": 0}
+    held = BenchmarkReport(timestamp="t", environment=env, dataset=dataset, summary=summary,
+                           comparison={"hybrid_rrf_document_mrr": None, "raw_score_mixing_document_mrr": None},
+                           query_results=[res])
+    main = held.model_copy(update={"heldout": held})
+    md = render_markdown_report(main)
+    assert "## Held-out evaluation" in md and "written **after** all tuning" in md and "`h1`" in md
+    assert "No held-out set was run" in render_markdown_report(held)

@@ -15,6 +15,7 @@ python scripts/run_eval.py                        # QA set through the agent + s
 python scripts/run_eval.py --mode direct          # the single-pass pipeline instead of the agent
 python scripts/run_eval.py --skip-security        # QA set only
 python scripts/run_eval.py --provider openai      # LLM answers (needs OPENAI_API_KEY); verified like extractive ones
+python scripts/run_eval.py --strict               # exit 1 if any tuning-set question or security case fails (CI)
 ```
 
 The script ingests the bundled corpus into **temporary** storage (your library is never touched), runs a warm-up
@@ -69,6 +70,23 @@ are computed on the agent's actual response at production settings (4 passages, 
 | Negative rejection / hard-negative handling | As defined in the dataset table |
 | Pass rate | Per question: answered, relevant evidence retrieved, citation precision ≥ 0.5, fact coverage ≥ 0.5 (if defined) and groundedness ≥ 0.5 (if scored); negatives pass when handled as above |
 | Latency mean / p50 / p95 | Wall-clock time of the answer path per question (screening, planning, tool calls, generation, verification), warm models, single process |
+
+## Held-out set
+
+[`data/sample/heldout_set.json`](../data/sample/heldout_set.json) has 23 questions written **after** all thresholds,
+rules and fixes were final, in categories the tuning set covers thinly: paraphrased exact answers, multi-passage
+answers, compound questions, diagram-only answers, a potentially conflicting-source question, an ambiguous question,
+near-domain missing evidence and out-of-domain questions. It uses the same metrics and pass criteria, is reported in
+its own section of the report, and is **not** gated by `--strict` (a gate invites tuning against it).
+
+Rules: never change thresholds, prompts or rules in response to individual held-out failures. If a fix is needed, design
+it from the failure category, write a **new** held-out set, and report both runs. The first run (78.3% pass, 18/23)
+exposed near-domain non-answers and one gate miss; both are documented in [AUDIT.md](AUDIT.md) and left unfixed for
+this reason.
+
+Not covered by any set (by construction of the corpus): scanned PDFs (covered by unit tests: a PDF without a text layer
+is indexed for image search only, with a warning), stale citations (covered by `CitationVerifier` unit tests), and
+genuinely contradictory documents.
 
 ## Security suite (prompt injection and PII leaks)
 

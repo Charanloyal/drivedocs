@@ -216,3 +216,24 @@ def test_prebuilt_index_is_restored_into_a_different_storage_root(make_service, 
     assert detail.startswith("not found: missing/ does not exist") and str(tmp_path) not in detail
     empty = make_service(root=tmp_path / "noseed", seed=False)
     assert empty.list_documents().total_documents == 0
+
+
+def _load_script(name):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_download_models_builds_the_demo_index_but_never_fails_the_build(monkeypatch, capsys):
+    dm = _load_script("download_models")
+    monkeypatch.setenv("DRIVEDOCS_SKIP_DEMO_INDEX", "true")
+    assert dm.build_demo_index() == 0 and "not building" in capsys.readouterr().out
+    monkeypatch.delenv("DRIVEDOCS_SKIP_DEMO_INDEX")
+    # With the mock backend build_demo_index.py refuses (status 2): reported, but the build still succeeds.
+    assert dm.build_demo_index() == 0 and "did not complete" in capsys.readouterr().out
+    assert dm.main() == 0  # mock backend: nothing to download or build

@@ -66,7 +66,9 @@ async function request(method, path, body) {
   try { data = await res.json(); } catch (_) { /* non-JSON */ }
   if (!res.ok) {
     const d = data && data.detail;
-    const message = (d && (d.message || (typeof d === "string" ? d : null))) || `Request failed (HTTP ${res.status}).`;
+    let message = (d && (d.message || (typeof d === "string" ? d : null))) || `Request failed (HTTP ${res.status}).`;
+    const rid = (d && d.request_id) || res.headers.get("X-Request-ID");
+    if (rid && res.status >= 500) message += ` (reference ${rid})`;
     throw new ApiError(res.status, (d && d.code) || "http_error", message, data);
   }
   return data;
@@ -99,6 +101,7 @@ function fmtDate(iso) {
   return isNaN(d) ? "–" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 function typeLabel(t) { return { pdf: "PDF", md: "Markdown", txt: "Text", png: "PNG", jpg: "JPEG", jpeg: "JPEG" }[t] || (t || "?").toUpperCase(); }
+function canDelete(d) { return d.source !== "sample" || !!(state.info && state.info.sample_deletion_allowed); }
 
 function scoreBar(value, threshold) {
   const pct = Math.max(0, Math.min(1, value || 0)) * 100;
@@ -430,20 +433,23 @@ function renderDocuments() {
     const statusBadge = d.status === "ready" ? badge(d.warnings && d.warnings.length ? "ready · warnings" : "ready", d.warnings && d.warnings.length ? "warn" : "ok")
       : d.status === "failed" ? badge("failed", "err") : badge(d.status);
     rows.append(h("tr", {},
-      h("td", {}, h("button", { class: "doc-name", type: "button", on: { click: () => openDocument(d.doc_id) } }, d.filename), d.source === "sample" ? h("span", {}, " ", badge("sample")) : null),
-      h("td", {}, typeLabel(d.file_type)),
-      h("td", { title: d.error || (d.warnings || []).join(" ") }, statusBadge),
-      h("td", { class: "num" }, d.status === "ready" ? d.page_count : "–"),
-      h("td", { class: "num" }, d.chunk_count),
-      h("td", { class: "num" }, d.image_count),
-      h("td", { class: "muted" }, fmtDate(d.created_at)),
-      h("td", {}, h("div", { class: "actions" },
+      h("td", { class: "cell-name" }, h("button", { class: "doc-name", type: "button", on: { click: () => openDocument(d.doc_id) } }, d.filename), d.source === "sample" ? h("span", {}, " ", badge("sample")) : null),
+      h("td", { dataset: { label: "Type" } }, typeLabel(d.file_type)),
+      h("td", { title: d.error || (d.warnings || []).join(" "), dataset: { label: "Status" } }, statusBadge),
+      h("td", { class: "num", dataset: { label: "Pages" } }, d.status === "ready" ? d.page_count : "–"),
+      h("td", { class: "num", dataset: { label: "Passages" } }, d.chunk_count),
+      h("td", { class: "num", dataset: { label: "Images" } }, d.image_count),
+      h("td", { class: "muted", dataset: { label: "Added" } }, fmtDate(d.created_at)),
+      h("td", { class: "cell-actions" }, h("div", { class: "actions" },
         h("button", { class: "btn ghost small", type: "button", on: { click: () => openDocument(d.doc_id) } }, "Details"),
-        h("button", { class: "btn danger small", type: "button", "aria-label": `Delete ${d.filename}`, on: { click: () => deleteDocument(d) } }, "Delete")))));
+        canDelete(d)
+          ? h("button", { class: "btn danger small", type: "button", "aria-label": `Delete ${d.filename}`, on: { click: () => deleteDocument(d) } }, "Delete")
+          : h("span", { class: "muted small", title: "Bundled sample documents are read-only on this demo" }, "read-only")))));
   }
 }
 
 async function deleteDocument(d) {
+  if (!canDelete(d)) { toast("Bundled sample documents are read-only on this demo."); return; }
   if (!confirm(`Delete "${d.filename}" and all of its passages and images?`)) return;
   try {
     await api.del(`/documents/${encodeURIComponent(d.doc_id)}`);
@@ -514,7 +520,7 @@ async function openDocument(docId) {
       body.append(h("div", { class: "page-group" }, h("h3", { text: `Page ${page} · ${chunks.length} passage${chunks.length > 1 ? "s" : ""}` }),
         ...chunks.map((c) => h("div", { class: "passage" }, c.section ? h("div", { class: "section-path", text: c.section }) : null, h("div", { class: "passage-text", text: c.text })))));
     }
-    if (d.status === "ready") body.append(h("div", {}, h("button", { class: "btn danger small", type: "button", on: { click: () => deleteDocument(d) } }, "Delete document")));
+    if (d.status === "ready" && canDelete(d)) body.append(h("div", {}, h("button", { class: "btn danger small", type: "button", on: { click: () => deleteDocument(d) } }, "Delete document")));
   } catch (err) {
     $("#drawerTitle").textContent = "Document";
     clear(body).append(h("p", { class: "muted", text: err.message }));
@@ -585,7 +591,23 @@ async function loadEvaluation() {
     const e = r.environment || {};
     const d = r.dataset || {};
     $("#evalMeta").textContent = `Report generated ${fmtDate(r.timestamp)} · ${d.size} curated questions (${d.text_queries} text, ${d.visual_queries} visual, ${d.compound_queries || 0} compound, ${d.negative_queries} negative, ${d.hard_negative_queries} hard negative) · ${e.answer_path || "direct"} · provider ${e.provider}`;
-    body.append(h("h2", { class: "section-title", text: "Retrieval and answer quality" }), metricGrid(METRICS, r.summary));
+    body.append(h("h2", { class: "section-title", text: "Retrieval and answer quality (tuning set, in-sample)" }), metricGrid(METRICS, r.summary));
+    if (r.heldout) {
+      const hs = r.heldout.summary, hd = r.heldout.dataset;
+      body.append(h("h2", { class: "section-title", text: "Held-out set (written after tuning, run once)" }),
+        h("p", { class: "muted small", text: `${hd.size} questions never used for tuning. Lower than the tuning set by design: this is the honest estimate.` }),
+        metricGrid([
+          ["pass_rate", "Pass rate", "Same pass criteria as the tuning set", "pct"],
+          ["recall_at_k", "Recall@5", "Relevant evidence in the top 5", "pct"],
+          ["groundedness", "Groundedness", "Claims backed by verified citations", "pct"],
+          ["answer_rate", "Answer rate", "Answerable questions not refused", "pct"],
+          ["hard_negative_handling_rate", "Near-domain handled", "Questions the documents can't answer, refused or flagged", "pct"],
+        ], hs));
+      const failing = r.heldout.query_results.filter((q) => !q.passed);
+      if (failing.length) {
+        body.append(h("ul", { class: "warnings" }, failing.map((q) => h("li", { text: `${q.query}: ${q.answer_type === "answer" ? "answered with related but non-responsive evidence" : q.answer_type.replace(/_/g, " ")}` }))));
+      }
+    }
     if (r.security) {
       const s = r.security;
       const sd = s.dataset || {};

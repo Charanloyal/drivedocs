@@ -52,9 +52,9 @@ on restart. The free instance sleeps after 15 idle minutes, so the first visit c
 | **LangChain agent** | A tool-calling loop (`BaseChatModel.bind_tools` → `AIMessage.tool_calls` → `StructuredTool` → `ToolMessage`) over two tools: `search_manual_text` (MiniLM + FAISS) and `search_manual_diagrams` (CLIP + FAISS). It decomposes compound questions, rewrites location questions into diagram queries, and records a trace of every tool call. Planner: GPT/Gemini via `langchain-openai` / `langchain-google-genai` when a key is set, otherwise a deterministic offline LangChain chat model, so the public demo needs no API key |
 | **Vehicle-manual text and diagrams** | PDFs are parsed per page with embedded figures extracted; passages go to a MiniLM index and diagrams to a CLIP index. CLIP finds warning-light charts, fuse-box layouts and engine-bay diagrams from a text question |
 | **Verified, grounded answers** | Answers quote retrieved evidence with `[Source: file, Page N]` tags; each tag is checked against the document registry, the page and the retrieved passage, and unverifiable tags are removed |
-| **Evaluation** | Recall@5 = 100% and groundedness = 100% on a curated 39-question QA set (text, visual, compound, out-of-corpus and near-domain negatives) over the synthetic corpus; in-sample, so indicative only. Full report in [reports/EVALUATION.md](reports/EVALUATION.md) |
+| **Evaluation** | Recall@5 = 100% and groundedness = 100% on a curated 39-question QA set (in-sample: thresholds were tuned on it). On a **23-question held-out set** written after tuning and run once, the pass rate is **78.3%** (Recall@5 100%, groundedness 100%), with near-domain "not in the documents" questions as the main weakness. Full report in [reports/EVALUATION.md](reports/EVALUATION.md) |
 | **Security tests** | 23 adversarial cases written for this corpus: direct prompt injection, indirect injection through a poisoned document, and PII-extraction attempts against a service record. 0% attack success and 0% PII leakage on these cases, with no over-blocking of the 3 benign controls; the guardrails are pattern-based |
-| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP), prebuilt demo index, CLIP vision tower unloaded when idle: ~320 MB RSS with the agent loaded (the live instance's `/ready` reported 317 MB). Locally (Windows laptop CPU) start-up from the prebuilt index takes ~0.5 s and the warm p50 answer latency is ~6.6 ms; that path makes no LLM call |
+| **Runs on a free 512 MB instance** | ONNX Runtime instead of PyTorch (int8 MiniLM, 4-bit CLIP), prebuilt demo index, CLIP vision tower unloaded when idle: ~320 MB RSS with the agent loaded (the live instance's `/ready` reported 317 MB). Locally (Windows laptop CPU) start-up from the prebuilt index takes ~0.5 s and the warm p50 answer latency is ~5.6 ms; that path makes no LLM call |
 
 | Workspace | Diagram answer (CLIP via the agent) |
 | --- | --- |
@@ -63,6 +63,8 @@ on restart. The free instance sleeps after 15 idle minutes, so the first visit c
 | ![Guardrails](docs/screenshots/guardrails.png) | ![Security evaluation](docs/screenshots/security-eval.png) |
 | **Visual search (CLIP + FAISS)** | **PII redacted at ingestion** |
 | ![Visual search](docs/screenshots/visual-search.png) | ![Service record with redacted personal data](docs/screenshots/document.png) |
+| **Phone: Ask (390 px)** | **Phone: Library (390 px)** |
+| ![Ask on a phone](docs/screenshots/mobile-ask.png) | ![Library on a phone: one card per document](docs/screenshots/mobile-library.png) |
 
 ## Architecture
 
@@ -129,6 +131,11 @@ in [docs/RAG_DESIGN.md](docs/RAG_DESIGN.md).
 | **Direct prompt injection** | Pattern screen for instruction overrides, system-prompt extraction, role changes/jailbreaks, fake `SYSTEM:` headers, chat-template tokens and forced outputs; injected clauses are removed and the legitimate remainder is answered | `screen_query` |
 | **Indirect prompt injection** (poisoned documents) | Instruction-like sentences in documents are flagged at ingestion, never quoted in extractive answers, stripped from LLM prompts and masked in returned evidence; evidence is delimited as untrusted for LLMs; citation-like text in documents is neutralised | `strip_injected_sentences`, `generation.py` |
 | **Fabricated citations** | Every `[Source: file, Page N]` must match a registered document, an existing page and a retrieved passage | [`citations.py`](src/drivedocs/citations.py) |
+| **Malicious PDFs** | Size, page, image-count and pixel limits; content-signature checks; `pypdf` kept at a version without known CVEs (6.21.4 fixes 7 published infinite-loop/memory DoS bugs present in 6.21.2) | [`ingestion.py`](src/drivedocs/ingestion.py), `requirements.txt` |
+| **Abuse of the public demo** | Per-client sliding-window rate limits (chat 30, search 60, upload 6, delete 10 per minute; `429` + `Retry-After`); bundled sample documents are read-only (`403`), so one visitor cannot break the demo for others | [`ratelimit.py`](src/drivedocs/ratelimit.py), [`service.py`](src/drivedocs/service.py) |
+
+Every response carries an `X-Request-ID` (also in error bodies and the access log) for tracing a failure. The full
+audit with severities and evidence is in [docs/AUDIT.md](docs/AUDIT.md).
 
 Legitimate questions close to the guardrails stay answerable: *"Where is the VIN located?"* is answered, *"Which VIN
 was serviced in RO-58213?"* is refused. Pattern-based screening is a heuristic layer; it complements the structural
@@ -158,7 +165,7 @@ Source: [`reports/evaluation_report.json`](reports/evaluation_report.json) (`sum
 | Fact coverage / answer rate | 100% / 100% |
 | Out-of-corpus refusals / hard negatives refused or flagged | 100% (3/3) / 100% (3/3) |
 | Pass rate | 100% (39/39); the direct pipeline without the agent passes 38/39 |
-| Latency p50 / p95 (warm, agent answer path, laptop CPU) | 6.6 ms / 14.7 ms |
+| Latency p50 / p95 (warm, agent answer path, laptop CPU) | 5.6 ms / 18.5 ms |
 
 **Security suite** ([`data/security/security_eval_set.json`](data/security/security_eval_set.json)): 23 cases
 (8 direct injection, 4 indirect injection through a poisoned document, 8 PII-extraction attempts, 3 benign controls).
@@ -171,6 +178,24 @@ Source: [`reports/evaluation_report.json`](reports/evaluation_report.json) (`sum
 | **PII leak rate** (any personal data in answer, passages or snippets) | **0%** |
 | PII-extraction attempts blocked or answered without PII | 100% |
 | Benign controls still answered (no over-blocking) | 100% |
+
+**Held-out set** ([`data/sample/heldout_set.json`](data/sample/heldout_set.json)): 23 questions written **after** all
+tuning (exact answers, multi-passage, compound, diagram-only, a conflicting-source case, ambiguous, near-domain and
+out-of-domain) and run once with no changes afterwards. Reported, not gated by CI.
+
+| Metric | Result |
+| --- | --- |
+| **Pass rate** | **78.3% (18/23)** |
+| Recall@5 / groundedness / citation precision | 100% / 100% / 100% |
+| Fact coverage / answer rate | 92.9% / 88.2% |
+| Out-of-domain refusals | 100% (2/2) |
+| Near-domain or ambiguous questions refused or flagged | **25% (1/4)** |
+
+The 5 failures are real weaknesses: 3 near-domain questions about things the documents do not contain ("towing
+capacity", "TPMS reset", "hybrid oil") get a confident answer built from related, correctly cited evidence; one short
+paraphrase ("How big is the fuel tank?") scores 0.236 and falls under the 0.30 text gate; and seating capacity is
+printed only inside a diagram (no OCR). They were deliberately not fixed against this set (see
+[docs/AUDIT.md](docs/AUDIT.md) #5a/5b).
 <!-- EVAL_TABLE_END -->
 
 **Read these numbers in context.** Both datasets are small and were written together with the synthetic corpus, and
@@ -262,10 +287,17 @@ Defaults live in [`configs/config.yaml`](configs/config.yaml); common overrides 
 | `DRIVEDOCS_PERSISTENT_STORAGE` | `false` | Declare durable storage (changes the UI notice) |
 | `DRIVEDOCS_MAX_UPLOAD_MB` | `15` | Upload size limit |
 | `DRIVEDOCS_CORS_ORIGINS` | empty | Allowed cross-origin callers (same-origin only by default) |
+| `DRIVEDOCS_RATE_LIMIT_ENABLED` | `true` | Per-client limits; tune with `DRIVEDOCS_RATE_LIMIT_{CHAT,SEARCH,UPLOAD,DELETE}_PER_MINUTE` |
+| `DRIVEDOCS_TRUST_PROXY_HEADERS` | `true` on Render, else `false` | Take the client address from proxy headers (only behind a trusted proxy) |
+| `DRIVEDOCS_ALLOW_SAMPLE_DELETION` | `false` | Allow deleting the bundled sample documents |
+| `DRIVEDOCS_VISION_IDLE_UNLOAD_SECONDS` | `300` | Release the CLIP vision tower after this many idle seconds (`0` keeps it loaded) |
 
 ## API
 
-Interactive documentation at `/docs`. Errors use the shape `{"detail": {"code": "...", "message": "..."}}`.
+Interactive documentation at `/docs`. Errors use the shape
+`{"detail": {"code": "...", "message": "...", "request_id": "..."}}`; every response has an `X-Request-ID` header.
+Write endpoints are rate-limited per client (`429 rate_limited` with `Retry-After`); deleting a bundled sample returns
+`403 sample_document_protected`.
 
 | Method & path | Description |
 | --- | --- |
@@ -306,9 +338,9 @@ Abbreviated response:
 ## Testing
 
 ```bash
-pytest                                               # 208 tests; mock embeddings, no downloads, temp storage
+pytest                                               # 226 tests; mock embeddings, no downloads, temp storage
 python scripts/run_eval.py --strict                  # QA (Recall@5, groundedness) + security suite, real models
-python scripts/smoke_test.py http://127.0.0.1:8000   # 30 end-to-end checks against a running instance
+python scripts/smoke_test.py http://127.0.0.1:8000   # 32 end-to-end checks against a running instance
 ```
 
 The suite covers the agent (planning, compound questions, diagram routing and query rewriting, LangChain
@@ -330,7 +362,7 @@ applied when the Render Blueprint syncs; see [docs/DEPLOYMENT.md](docs/DEPLOYMEN
 ```text
 Python: 3.14.7 (PYTHON_VERSION)
 Build:  pip install -r requirements.txt && pip install --no-deps -e . &&
-        HF_HUB_OFFLINE=0 python scripts/download_models.py && python scripts/build_demo_index.py
+        HF_HUB_OFFLINE=0 python scripts/download_models.py     # also builds the prebuilt demo index
 Start:  uvicorn drivedocs.api:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
 Health: /health   (readiness detail at /ready)
 ```
@@ -357,32 +389,52 @@ Step-by-step guide and troubleshooting: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## Known limitations
 
+* **Near-domain questions** about something the documents do not contain often get a confident answer built from
+  related evidence (held-out: 1 of 4 handled), e.g. "towing capacity" → how to tow. The citations are valid; the
+  answer is non-responsive. Short paraphrases can also fall under the 0.30 text gate and be refused.
 * The offline router plans with rules (decomposition, diagram cues, under-hood query rewriting); an LLM planner
   generalises better to unusual phrasings. Extractive answers quote sentences and cannot bridge vocabulary gaps such as
   "final" vs. "Fourth".
 * Guardrails are pattern-based: they stop the tested attack families but not every paraphrase, and names in
   free-running prose (outside labelled fields) are not detected as PII.
-* No OCR: text inside scanned pages is not extracted; CLIP matches diagrams visually and reads only large labels.
+* No OCR: text inside scanned pages and diagrams is not extracted (held-out: seating capacity, printed only on the tire
+  placard, cannot be answered); CLIP matches diagrams visually and reads only large labels.
 * Verification checks provenance and word overlap, not semantic entailment.
 * Thresholds were calibrated on the bundled corpus; recalibrate for other manuals.
-* Single process, no authentication, local filesystem storage, exact (flat) FAISS search.
+* No authentication: visitors can see and delete each other's uploads (the bundled samples are read-only). Rate limits
+  are in-memory and per process, and a client that forges proxy headers can evade (but not misuse) them.
+* PDF parsing has no time budget and runs under the service write lock: a parser hang (none known in the pinned
+  `pypdf`) would block uploads and deletions until restart, while chat keeps working.
+* Single process, local filesystem storage, exact (flat) FAISS search.
+
+## Future improvements
+
+* A question-coverage check that flags answers which do not address the question's key terms, validated on a new
+  held-out set.
+* OCR for scanned pages and diagram labels; LLM answer writing behind the existing verifier.
+* Sandboxed PDF parsing (subprocess with time and memory limits) once the instance has headroom.
+* Authentication with per-user collections and durable storage (Render disk or object storage).
+* Browser-based UI tests in CI (the responsive and journey checks in [docs/AUDIT.md](docs/AUDIT.md) were run
+  manually with Playwright).
 
 ## Project structure
 
 ```
 configs/config.yaml          defaults: models, thresholds, agent, guardrails, limits
-data/sample/                 Aurora S5 vehicle corpus + evaluation_set.json (QA)
+data/sample/                 Aurora S5 vehicle corpus + evaluation_set.json (tuning QA) + heldout_set.json (held-out QA)
 data/security/               poisoned document + security_eval_set.json (injection / PII-leak cases)
-docs/                        RAG design, evaluation methodology, deployment, audit, screenshots
+docs/                        audit, RAG design, evaluation methodology, deployment, screenshots
 reports/                     generated evaluation report (JSON + Markdown)
-scripts/run_eval.py          QA + security evaluation
+scripts/run_eval.py          QA (tuning + held-out) + security evaluation
 scripts/smoke_test.py        end-to-end checks against a running instance
 scripts/seed_sample_data.py  regenerate the synthetic corpus and diagrams (dev only)
-scripts/download_models.py   build-time model prefetch
+scripts/download_models.py   build-time model prefetch, then builds the demo index
+scripts/build_demo_index.py  prebuilt demo index (data/prebuilt) restored at start-up
 src/drivedocs/
   agent.py        LangChain agent: planners, tools, retrievers, evidence assembly, output guardrails
   guardrails.py   PII redaction, PII-request and prompt-injection detection
-  api.py          FastAPI routes, error handling, security headers, body-size limit
+  ratelimit.py    per-client sliding-window rate limiting
+  api.py          FastAPI routes, request IDs, rate limits, error handling, security headers, body-size limit
   service.py      lifecycle, ingest/delete, search, chat, health/readiness
   ingestion.py    validation, parsing, image extraction, redaction at ingestion, registry
   chunking.py     recursive splitter with overlap, Markdown sections and list items, PDF re-flow

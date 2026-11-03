@@ -124,6 +124,9 @@ class BenchmarkReport(BaseModel):
     comparison: Dict[str, Optional[float]]
     query_results: List[QueryEvaluationResult]
     security: Optional["SecuritySuiteReport"] = None
+    heldout: Optional["BenchmarkReport"] = Field(
+        None, description="Held-out questions written after tuning; reported separately and never used for tuning"
+    )
 
 
 def _pair_hit(pair: Pair, relevant: Set[Pair]) -> bool:
@@ -570,6 +573,43 @@ poisoned forum post in `data/security/`.
 {chr(10).join(rows)}"""
 
 
+def _heldout_section(held: Optional[BenchmarkReport]) -> str:
+    if held is None:
+        return "_No held-out set was run._"
+    s, d = held.summary, held.dataset
+    rows = []
+    for r in held.query_results:
+        kind = ("Hard negative" if r.hard_negative else "Negative") if r.is_unsupported else r.modality.title()
+        if r.compound:
+            kind += " (compound)"
+        rr = "—" if r.reciprocal_rank is None else f"{r.reciprocal_rank:.2f}"
+        fc = "—" if r.fact_coverage is None else f"{r.fact_coverage * 100:.0f}%"
+        answer = r.generated_answer[:110].replace("|", "/").replace("\n", " ")
+        rows.append(
+            f"| `{r.query_id}` | {r.query.replace('|', '/')} | {kind} | {rr} | {fc} | {r.answer_type} | "
+            f"{'PASS' if r.passed else 'FAIL'} | {answer} |"
+        )
+    return f"""Dataset `{d['path']}`: {d['size']} questions ({d['text_queries']} text, {d['visual_queries']} visual,
+{d.get('compound_queries', 0)} compound, {d['negative_queries']} out-of-domain, {d['hard_negative_queries']} near-domain or
+ambiguous) written **after** all tuning and run without changing any threshold or rule afterwards. Same pass criteria as
+the tuning set.
+
+| Metric | Value |
+| :--- | :---: |
+| Pass rate | **{_fmt_pct(s['pass_rate'])}** |
+| Recall@{held.environment['k_text']} (answerable) | {_fmt_pct(s.get('recall_at_k'))} |
+| Text / image Recall@{held.environment['k_text']} | {_fmt_pct(s['text_recall_at_k'])} / {_fmt_pct(s['image_recall_at_k'])} |
+| Groundedness | {_fmt_pct(s.get('groundedness'))} |
+| Citation precision | {_fmt_pct(s['citation_precision'])} |
+| Fact coverage | {_fmt_pct(s['fact_coverage'])} |
+| Answer rate | {_fmt_pct(s['answer_rate'])} |
+| Out-of-domain refusals / near-domain handled | {_fmt_pct(s['negative_rejection_rate'])} / {_fmt_pct(s['hard_negative_handling_rate'])} |
+
+| ID | Question | Type | RR | Fact coverage | Answer type | Result | Answer (truncated) |
+| :--- | :--- | :--- | :---: | :---: | :--- | :---: | :--- |
+{chr(10).join(rows)}"""
+
+
 def render_markdown_report(report: BenchmarkReport) -> str:
     s, d, e, c = report.summary, report.dataset, report.environment, report.comparison
     rows = []
@@ -636,6 +676,10 @@ roadside guide, service record and an engine-bay diagram).
 | :--- | :---: |
 | Weighted Reciprocal Rank Fusion (current) | {_fmt_num(c['hybrid_rrf_document_mrr'])} |
 | Raw-score mixing of MiniLM and CLIP cosines | {_fmt_num(c['raw_score_mixing_document_mrr'])} |
+
+## Held-out evaluation
+
+{_heldout_section(report.heldout)}
 
 ## Security: prompt injection and PII leakage
 

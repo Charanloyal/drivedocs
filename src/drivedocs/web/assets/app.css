@@ -85,6 +85,8 @@ h2 { font-size: 1.02rem; font-weight: 650; }
 
 main { max-width: 1320px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); outline: none; }
 .view { display: flex; flex-direction: column; gap: 1.25rem; }
+/* Flex children default to min-width: auto, which lets a wide table push the whole page sideways on phones. */
+.view > *, .grid-2 > *, .grid-3 > * { min-width: 0; }
 .view[hidden] { display: none; }
 
 /* Cards & layout */
@@ -303,9 +305,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
   .ask-layout { grid-template-columns: 1fr; height: auto; }
   .chat { min-height: 70vh; }
 }
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .topbar { flex-wrap: wrap; gap: 0.6rem; }
-  .tabs { order: 3; flex-basis: 100%; }
+  /* All five sections stay visible: wrap instead of scrolling the tab bar off-screen. */
+  .tabs { order: 3; flex-basis: 100%; flex-wrap: wrap; overflow-x: visible; }
+  .status-pill { margin-left: auto; }
+  /* Library: one stacked card per document instead of an 8-column table. */
+  .doc-table thead { display: none; }
+  .doc-table, .doc-table tbody, .doc-table tr { display: block; width: 100%; }
+  .doc-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1rem; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); }
+  .doc-table tr:last-child { border-bottom: 0; }
+  .doc-table td { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; font-size: 0.82rem; }
+  .doc-table td[data-label]::before { content: attr(data-label); color: var(--faint); font-size: 0.74rem; }
+  .doc-table td.num { text-align: left; }
+  .doc-table .cell-name { flex-basis: 100%; font-size: 0.92rem; overflow-wrap: anywhere; }
+  .doc-table .cell-actions { flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  .tabs a { padding: 0.4rem 0.65rem; font-size: 0.88rem; }
   .examples { grid-template-columns: 1fr; }
   .composer { flex-wrap: wrap; }
   .composer textarea { flex-basis: 100%; }

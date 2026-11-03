@@ -51,6 +51,8 @@ def main() -> int:
     parser.add_argument("--k", type=int, default=5, help="top-K text results for retrieval metrics (Recall@K)")
     parser.add_argument("--k-images", type=int, default=5, help="top-K image results for retrieval metrics")
     parser.add_argument("--dataset", type=Path, default=ROOT / "data" / "sample" / "evaluation_set.json")
+    parser.add_argument("--heldout", type=Path, default=ROOT / "data" / "sample" / "heldout_set.json",
+                        help="held-out questions, reported separately (never used for tuning; not gated by --strict)")
     parser.add_argument("--security-dataset", type=Path,
                         default=ROOT / "data" / "security" / "security_eval_set.json")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "reports")
@@ -76,6 +78,11 @@ def main() -> int:
         queries = [EvaluationQuery(**item) for item in json.loads(args.dataset.read_text(encoding="utf-8"))]
         print(f"[*] Running {len(queries)} QA queries ({args.mode} answer path)...")
         report = evaluator.run_benchmark(queries, dataset_path=_label(args.dataset))
+
+        if args.heldout and args.heldout.exists():
+            held = [EvaluationQuery(**item) for item in json.loads(args.heldout.read_text(encoding="utf-8"))]
+            print(f"[*] Running {len(held)} held-out questions...")
+            report.heldout = evaluator.run_benchmark(held, dataset_path=_label(args.heldout), warmup=False)
 
         if not args.skip_security:
             spec = json.loads(args.security_dataset.read_text(encoding="utf-8"))
@@ -103,6 +110,12 @@ def main() -> int:
     for key, value in report.comparison.items():
         print(f"  {key:32s} {value}")
     print(f"  {'failing queries':32s} {[r.query_id for r in report.query_results if not r.passed]}")
+    if report.heldout:
+        print("--------------------------- HELD-OUT ---------------------------")
+        for key in ("pass_rate", "recall_at_k", "groundedness", "citation_precision", "fact_coverage",
+                    "answer_rate", "negative_rejection_rate", "hard_negative_handling_rate"):
+            print(f"  {key:32s} {report.heldout.summary.get(key)}")
+        print(f"  {'failing held-out':32s} {[r.query_id for r in report.heldout.query_results if not r.passed]}")
     if report.security:
         print("--------------------------- SECURITY ---------------------------")
         for key, value in report.security.summary.items():
