@@ -4,8 +4,6 @@ import pytest
 from drivedocs.ingestion import ParsedDocument
 from drivedocs.retrieval import MultimodalRetriever
 from drivedocs.schemas import DocumentMetadata, ImageItem, TextChunk
-from drivedocs.text_index import TextFAISSIndex
-from drivedocs.image_index import ImageFAISSIndex
 
 
 @pytest.fixture

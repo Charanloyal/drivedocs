@@ -18,7 +18,7 @@ pillow==13.0.0
 langchain-core==1.7.0
 
 # Document parsing
-pypdf==6.21.2
+pypdf==6.21.4
 
 # Web API
 fastapi==0.162.0

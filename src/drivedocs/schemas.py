@@ -351,6 +351,10 @@ class SystemInfoResponse(BaseModel):
     agent: Dict[str, Any] = Field(default_factory=dict)
     security: Dict[str, bool] = Field(default_factory=dict)
     commit: Optional[str] = Field(None, description="Deployed git commit (short SHA) when the platform provides it")
+    sample_deletion_allowed: bool = Field(False, description="Whether bundled sample documents can be deleted")
+    rate_limits_per_minute: Dict[str, int] = Field(
+        default_factory=dict, description="Per-client request limits by endpoint group (empty when disabled)"
+    )
     authentication: bool = False
 
 
@@ -391,6 +395,7 @@ class DeleteResponse(BaseModel):
 class ErrorBody(BaseModel):
     code: str
     message: str
+    request_id: Optional[str] = Field(None, description="Matches the X-Request-ID response header and server logs")
 
 
 class ErrorResponse(BaseModel):

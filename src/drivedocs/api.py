@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import logging
+import math
+import re
+import time
+import uuid
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +32,7 @@ from drivedocs.ingestion import (
     UnsupportedFileTypeError,
 )
 from drivedocs.models import ModelLoadError
+from drivedocs.ratelimit import RateLimiter, bucket_for, client_id
 from drivedocs.schemas import (
     ChatRequest,
     ChatResponse,
@@ -46,6 +52,7 @@ from drivedocs.service import (
     DriveDocsService,
     InvalidQueryImageError,
     NotFoundError,
+    ProtectedDocumentError,
     ServiceUnavailableError,
 )
 
@@ -70,8 +77,16 @@ class APIError(Exception):
         self.extra = extra
 
 
+_REQUEST_ID: ContextVar[str] = ContextVar("drivedocs_request_id", default="")
+_SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+access_logger = logging.getLogger("drivedocs.access")
+
+
 def _error(status_code: int, code: str, message: str, headers: Optional[Dict[str, str]] = None, **extra: Any):
     body = {"detail": {"code": code, "message": message, **jsonable_encoder(extra)}}
+    request_id = _REQUEST_ID.get()
+    if request_id:
+        body["detail"]["request_id"] = request_id
     return JSONResponse(status_code=status_code, content=body, headers=headers)
 
 
@@ -202,6 +217,39 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+rate_limiter = RateLimiter(settings.rate_limits)
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    """Outermost middleware: request ID, per-client rate limiting and an access log line with latency."""
+    incoming = request.headers.get("x-request-id", "")
+    request_id = incoming if _SAFE_REQUEST_ID.match(incoming) else uuid.uuid4().hex[:16]
+    _REQUEST_ID.set(request_id)
+    started = time.perf_counter()
+    bucket = bucket_for(request.method, request.url.path) if settings.rate_limit_enabled else None
+    retry_after = None
+    if bucket:
+        peer = request.client.host if request.client else None
+        retry_after = rate_limiter.check(bucket, client_id(request.headers, peer, settings.trust_proxy_headers))
+    if retry_after is not None:
+        wait = max(1, math.ceil(retry_after))
+        response = _error(
+            429, "rate_limited",
+            f"Too many {bucket} requests. Please wait {wait} seconds and try again.",
+            headers={"Retry-After": str(wait)}, retry_after_seconds=wait,
+        )
+    else:
+        response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    if request.url.path not in ("/health", "/ready") and not request.url.path.startswith("/assets"):
+        access_logger.info(
+            "%s %s -> %d in %.0f ms [request_id=%s]",
+            request.method, request.url.path, response.status_code, (time.perf_counter() - started) * 1000, request_id,
+        )
+    return response
+
+
 # Error handling ----------------------------------------------------------------------------------------------------
 
 
@@ -237,6 +285,11 @@ async def _model_error(_: Request, exc: ModelLoadError):
 @app.exception_handler(NotFoundError)
 async def _not_found(_: Request, exc: NotFoundError):
     return _error(404, "not_found", str(exc))
+
+
+@app.exception_handler(ProtectedDocumentError)
+async def _protected(_: Request, exc: ProtectedDocumentError):
+    return _error(403, "sample_document_protected", str(exc))
 
 
 @app.exception_handler(InvalidQueryImageError)

@@ -81,6 +81,20 @@ runtime:
   # Seconds without image embedding after which the CLIP vision tower (~70 MB) is released; 0 keeps it loaded.
   # Text-to-image search only needs the always-loaded CLIP text tower.
   vision_idle_unload_seconds: 300
+  # Bundled sample documents are read-only on the public demo (DRIVEDOCS_ALLOW_SAMPLE_DELETION=true to allow deleting).
+  allow_sample_deletion: false
+
+rate_limits:
+  # Per client, per minute, sliding window, in memory (single process). 0 disables a bucket.
+  # Exceeding a limit returns 429 with Retry-After. GET requests are never limited.
+  enabled: true
+  chat_per_minute: 30
+  search_per_minute: 60
+  upload_per_minute: 6
+  delete_per_minute: 10
+  # Client address from proxy headers (True-Client-IP / CF-Connecting-IP / first X-Forwarded-For). Defaults to
+  # true on Render (RENDER=true); keep false when the app is reachable without a trusted proxy.
+  # trust_proxy_headers: false
   ready_wait_seconds: 60
 
 retrieval:

@@ -148,6 +148,24 @@ class Settings:
         self.seed_sample_data: bool = _env_bool(
             "DRIVEDOCS_SEED_SAMPLE_DATA", bool(runtime_cfg.get("seed_sample_data", True))
         )
+        # Bundled samples are read-only by default so one visitor cannot break the public demo for everyone.
+        self.allow_sample_deletion: bool = _env_bool(
+            "DRIVEDOCS_ALLOW_SAMPLE_DELETION", bool(runtime_cfg.get("allow_sample_deletion", False))
+        )
+
+        # Abuse protection for the public demo (per client, per minute; 0 disables a bucket).
+        rl_cfg = self.raw_config.get("rate_limits", {})
+        self.rate_limit_enabled: bool = _env_bool("DRIVEDOCS_RATE_LIMIT_ENABLED", bool(rl_cfg.get("enabled", True)))
+        self.rate_limits: Dict[str, int] = {
+            bucket: int(_env_str(f"DRIVEDOCS_RATE_LIMIT_{bucket.upper()}_PER_MINUTE",
+                                 str(rl_cfg.get(f"{bucket}_per_minute", default))))
+            for bucket, default in (("chat", 30), ("search", 60), ("upload", 6), ("delete", 10))
+        }
+        # Only behind a trusted reverse proxy: take the client address from proxy headers. On by default on Render
+        # (which sets RENDER=true); otherwise every visitor would share the proxy's address and one rate-limit bucket.
+        self.trust_proxy_headers: bool = _env_bool(
+            "DRIVEDOCS_TRUST_PROXY_HEADERS", bool(rl_cfg.get("trust_proxy_headers", _env_bool("RENDER", False)))
+        )
         self.max_concurrent_inference: int = int(
             _env_str("DRIVEDOCS_MAX_CONCURRENT_INFERENCE", str(runtime_cfg.get("max_concurrent_inference", 2)))
         )

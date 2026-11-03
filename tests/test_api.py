@@ -1,7 +1,6 @@
 """Integration and endpoint tests for FastAPI application."""
 
 import io
-from PIL import Image
 import pytest
 from fastapi.testclient import TestClient
 

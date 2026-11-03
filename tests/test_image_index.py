@@ -1,7 +1,6 @@
 """Unit tests for ImageFAISSIndex and multimodal CLIP retrieval."""
 
 import os
-from pathlib import Path
 from PIL import Image
 import pytest
 

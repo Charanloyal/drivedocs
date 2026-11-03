@@ -15,6 +15,8 @@ from pathlib import Path
 
 _TEST_STORAGE = Path(tempfile.mkdtemp(prefix="drivedocs_test_storage_"))
 os.environ["DRIVEDOCS_STORAGE_DIR"] = str(_TEST_STORAGE)
+# Rate limiting is exercised by dedicated tests; the rest of the suite issues many requests from one client.
+os.environ["DRIVEDOCS_RATE_LIMIT_ENABLED"] = "false"
 # Never restore a locally built demo index (data/prebuilt) into test storage.
 os.environ["DRIVEDOCS_PREBUILT_DIR"] = str(_TEST_STORAGE / "_no_prebuilt_index")
 os.environ.setdefault("DRIVEDOCS_EMBEDDING_BACKEND", "mock")

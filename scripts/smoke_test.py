@@ -185,6 +185,15 @@ def main() -> int:
 
     status, _, raw = request("GET", "/static/images/..%2Fdocuments.json")
     check("Path traversal on image route is blocked", status == 404)
+    _, health_headers, _ = request("GET", "/health")
+    check("Responses carry an X-Request-ID", bool(health_headers.get("x-request-id")))
+    sample = next((d for d in names.values() if d.get("source") == "sample"), None)
+    if sample and info.get("sample_deletion_allowed") is False:
+        # Only probed when the server reports the protection, so this can never delete a document.
+        status, _, body = request("DELETE", f"/documents/{sample['doc_id']}")
+        check("Bundled samples cannot be deleted", status == 403, f"HTTP {status}")
+    else:
+        check("Sample-deletion protection not reported by this server (skipped)", True)
     status, report = get_json("/evaluation")
     check("GET /evaluation serves the committed report", status == 200 and report.get("dataset", {}).get("size"),
           f"{report.get('dataset', {}).get('size')} queries, Recall@5={report.get('summary', {}).get('recall_at_k')}, "

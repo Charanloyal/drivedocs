@@ -1,7 +1,6 @@
 """Unit tests for TextFAISSIndex and semantic text retrieval (real MiniLM weights)."""
 
 import os
-import numpy as np
 import pytest
 from drivedocs.schemas import TextChunk
 from drivedocs.text_index import TextEmbeddingModel, TextFAISSIndex

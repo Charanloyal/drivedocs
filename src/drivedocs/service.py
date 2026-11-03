@@ -65,6 +65,10 @@ class NotFoundError(LookupError):
     pass
 
 
+class ProtectedDocumentError(PermissionError):
+    """Raised when a visitor tries to delete a bundled sample document on a public deployment."""
+
+
 class InvalidQueryImageError(ValueError):
     pass
 
@@ -419,6 +423,10 @@ class DriveDocsService:
             meta = self.ingestion.get_document(doc_id)
             if meta is None:
                 raise NotFoundError(f"Document '{doc_id}' was not found.")
+            if meta.source == "sample" and not self.config.allow_sample_deletion:
+                raise ProtectedDocumentError(
+                    f"'{meta.filename}' is a bundled sample document and cannot be deleted on this deployment."
+                )
             removed_chunks = self.text_index.remove_doc(doc_id)
             removed_images = self.image_index.remove_doc(doc_id)
             for item in self.ingestion.get_images(doc_id) or removed_images:
@@ -621,6 +629,10 @@ class DriveDocsService:
                 "detect_prompt_injection": self.config.detect_prompt_injection,
             },
             commit=(os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "")[:7] or None,
+            sample_deletion_allowed=self.config.allow_sample_deletion,
+            rate_limits_per_minute=(
+                {k: v for k, v in self.config.rate_limits.items() if v > 0} if self.config.rate_limit_enabled else {}
+            ),
         )
 
     def evaluation_report(self) -> Optional[dict]:
